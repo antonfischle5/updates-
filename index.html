@@ -51,6 +51,17 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11l2 2h4.5A2.5 2.5 0 0 1 20 7.5v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/></svg>
           <span class="nav-label">Dateien</span>
         </button>
+        <div class="nav-group" id="games-nav-group">
+          <button class="nav-item nav-group-toggle" id="games-toggle" type="button" aria-expanded="false" aria-controls="games-submenu">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="3"/><path d="M8 11v4M6 13h4M16 12h.01M18 14h.01"/></svg>
+            <span class="nav-label">Games</span><span class="nav-group-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-submenu hidden" id="games-submenu">
+            <button class="nav-item nav-subitem" type="button" data-page="clicker">
+              <span class="nav-sub-dot"></span><span class="nav-label">Klicker</span>
+            </button>
+          </div>
+        </div>
         <button class="nav-item" type="button" data-page="activity" title="Kommt später">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
           <span class="nav-label">Aktivität</span>
@@ -125,6 +136,19 @@
           <div class="files-list-heading"><h3>Gespeicherte Dateien</h3><button class="secondary-button" id="files-refresh" type="button">Aktualisieren</button></div>
           <div id="files-list" class="files-list"><p>Dateien werden geladen …</p></div>
           <section id="file-preview" class="file-preview hidden"><div class="files-list-heading"><h3 id="file-preview-title">Vorschau</h3><button class="secondary-button" id="file-preview-close" type="button">Schließen</button></div><div id="file-preview-content"></div></section>
+        </section>
+        <section id="clicker-page" class="panel-card hidden">
+          <div class="panel-heading"><div><p class="eyebrow">GAMES</p><h2>Klicker</h2><p>Klicke auf den Button und sammle Punkte. Dein Spielstand bleibt in diesem Browser gespeichert.</p></div></div>
+          <div class="clicker-game">
+            <div class="clicker-score-label">Deine Punkte</div>
+            <strong class="clicker-score" id="clicker-score">0</strong>
+            <button class="clicker-button" id="clicker-button" type="button" aria-label="Punkt sammeln">+1</button>
+            <p id="clicker-message" class="clicker-message">Los geht’s! Jeder Klick bringt dir einen Punkt.</p>
+            <div class="clicker-upgrade">
+              <div><strong>Stärker klicken</strong><p>Erhöht die Punkte pro Klick um 1.</p><small id="clicker-power">Aktuelle Stärke: +1</small></div>
+              <button class="secondary-button" id="clicker-upgrade" type="button">Upgrade · 25 Punkte</button>
+            </div>
+          </div>
         </section>
         <section id="placeholder-page" class="welcome-card hidden">
           <h1 id="placeholder-title">Kommt später</h1>
@@ -238,6 +262,9 @@
     let authMode = "login";
     let currentUsername = "";
     let busy = false;
+    let clickerScore = 0;
+    let clickerPower = 1;
+    let clickerUpgradeCost = 25;
 
     function setMessage(element, text, success = false) {
       element.textContent = text;
@@ -468,13 +495,15 @@
         const home = page === "home";
         const admin = page === "admin";
         const files = page === "files";
+        const clicker = page === "clicker";
+        document.querySelector("#clicker-page").classList.toggle("hidden", !clicker);
         if (files && document.querySelector('[data-page="files"]').classList.contains("hidden")) return;
         document.querySelector("#files-page").classList.toggle("hidden", !files);
         document.querySelector("#home-page").classList.toggle("hidden", !home);
-        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files);
+        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files || clicker);
         adminPage.classList.toggle("hidden", !admin);
-        document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (page === "files" ? "Dateien" : "Aktivität"));
-        if (!files && !home && !admin) document.querySelector("#placeholder-title").textContent = "Aktivität kommt später";
+        document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (files ? "Dateien" : (clicker ? "Klicker" : "Aktivität")));
+        if (!files && !home && !admin && !clicker) document.querySelector("#placeholder-title").textContent = "Aktivität kommt später";
         if (files) loadFiles();
         if (window.matchMedia("(max-width: 760px)").matches) sidebar.classList.remove("mobile-open");
       });
@@ -674,6 +703,41 @@
     });
     document.querySelector("#files-refresh").addEventListener("click", loadFiles);
     document.querySelector("#file-preview-close").addEventListener("click", () => { filePreview.classList.add("hidden"); filePreviewContent.replaceChildren(); });
+
+
+    const gamesToggle = document.querySelector("#games-toggle");
+    const gamesSubmenu = document.querySelector("#games-submenu");
+    gamesToggle.addEventListener("click", () => {
+      const opening = gamesSubmenu.classList.contains("hidden");
+      gamesSubmenu.classList.toggle("hidden", !opening);
+      gamesToggle.setAttribute("aria-expanded", String(opening));
+    });
+    function renderClicker() {
+      document.querySelector("#clicker-score").textContent = String(clickerScore);
+      document.querySelector("#clicker-power").textContent = "Aktuelle Stärke: +" + clickerPower;
+      const upgradeButton = document.querySelector("#clicker-upgrade");
+      upgradeButton.textContent = "Upgrade · " + clickerUpgradeCost + " Punkte";
+      upgradeButton.disabled = clickerScore < clickerUpgradeCost;
+      try { localStorage.setItem("mini-clicker-save", JSON.stringify({ score: clickerScore, power: clickerPower, cost: clickerUpgradeCost })); } catch {}
+    }
+    try {
+      const savedClicker = JSON.parse(localStorage.getItem("mini-clicker-save") || "null");
+      if (savedClicker && Number.isSafeInteger(savedClicker.score) && savedClicker.score >= 0 && Number.isSafeInteger(savedClicker.power) && savedClicker.power >= 1 && Number.isSafeInteger(savedClicker.cost) && savedClicker.cost >= 25) {
+        clickerScore = savedClicker.score; clickerPower = savedClicker.power; clickerUpgradeCost = savedClicker.cost;
+      }
+    } catch {}
+    document.querySelector("#clicker-button").addEventListener("click", () => {
+      clickerScore += clickerPower;
+      document.querySelector("#clicker-message").textContent = "+" + clickerPower + " Punkte gesammelt!";
+      renderClicker();
+    });
+    document.querySelector("#clicker-upgrade").addEventListener("click", () => {
+      if (clickerScore < clickerUpgradeCost) return;
+      clickerScore -= clickerUpgradeCost; clickerPower += 1; clickerUpgradeCost = Math.ceil(clickerUpgradeCost * 1.7);
+      document.querySelector("#clicker-message").textContent = "Upgrade gekauft! Jeder Klick bringt jetzt +" + clickerPower + " Punkte.";
+      renderClicker();
+    });
+    renderClicker();
 
     setAuthMode("login");
     checkSession();
