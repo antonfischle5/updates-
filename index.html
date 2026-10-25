@@ -57,9 +57,7 @@
             <span class="nav-label">Games</span><span class="nav-group-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="nav-submenu hidden" id="games-submenu">
-            <button class="nav-item nav-subitem" type="button" data-page="clicker">
-              <span class="nav-sub-dot"></span><span class="nav-label">Klicker</span>
-            </button>
+            <button class="nav-item nav-subitem" type="button" data-page="clicker"><span class="nav-sub-dot"></span><span class="nav-label">Klicker</span></button><button class="nav-item nav-subitem" type="button" data-page="farming"><span class="nav-sub-dot"></span><span class="nav-label">Farming</span></button>
           </div>
         </div>
         <button class="nav-item" type="button" data-page="activity" title="Kommt später">
@@ -150,9 +148,17 @@
               <div class="clicker-upgrade"><div><strong>Goldener Klick</strong><p>Verdoppelt deine Punkte pro Klick.</p><small id="clicker-multiplier">Multiplikator: x1</small></div><button class="secondary-button" id="clicker-multiplier-upgrade" type="button">Upgrade · 250 Punkte</button></div>
               <div class="clicker-upgrade"><div><strong>Super-Klick</strong><p>Großer dauerhafter Bonus pro Klick.</p><small id="clicker-super">Bonus: +0</small></div><button class="secondary-button" id="clicker-super-upgrade" type="button">Upgrade · 1000 Punkte</button></div>
             </div>
-            <section class="leaderboard-panel"><div class="panel-heading"><div><h3>🏆 Clicker Rangliste</h3><p>Die Top 10 erhalten ein Abzeichen auf ihrem Profil.</p></div><button class="secondary-button" id="leaderboard-refresh" type="button">Aktualisieren</button></div><ol id="clicker-leaderboard" class="leaderboard-list"><li>Rangliste wird geladen …</li></ol></section>
+            <section class="leaderboard-panel"><div class="panel-heading"><div><h3>🏆 Clicker Rangliste</h3><p>Die Top 10 erhalten ein Abzeichen auf ihrem Profil.</p></div><button class="leaderboard-icon-button" id="leaderboard-toggle" type="button" aria-label="Rangliste anzeigen" aria-expanded="false">🏆</button></div><div id="leaderboard-wrap" class="hidden"><button class="secondary-button" id="leaderboard-refresh" type="button">Aktualisieren</button><ol id="clicker-leaderboard" class="leaderboard-list"><li>Rangliste wird geladen …</li></ol></div></section>
             <section class="leaderboard-panel"><div class="panel-heading"><div><h3>👤 Spielerprofil</h3><p>Klicke auf einen Namen, um die Abzeichen zu sehen.</p></div></div><div id="public-profile" class="public-profile"><p>Wähle einen Spieler aus der Rangliste.</p></div></section>
           </div>
+        </section>
+        <section id="farming-page" class="panel-card hidden">
+          <div class="panel-heading"><div><p class="eyebrow">GAMES</p><h2>🌾 Farming</h2><p>Stelle Farmer ein, wähle ihre Felder und sammle Ernten. Wachstum läuft auch weiter, wenn du offline bist.</p></div></div>
+          <div class="farm-summary"><div><span>Münzen</span><strong id="farm-coins">100</strong></div><div><span>Farmer</span><strong id="farm-workers">0</strong></div><div><span>Ernte bereit</span><strong id="farm-ready">0</strong></div></div>
+          <section class="farm-panel"><h3>👩‍🌾 Farmer einstellen</h3><p>Ein Farmer kostet 50 Münzen.</p><button class="primary-button" id="farm-hire" type="button">Farmer einstellen · 50 Münzen</button><p id="farm-message" class="form-message" role="status"></p></section>
+          <section class="farm-panel"><h3>🌱 Pflanzen und Erntezeiten</h3><div id="farm-crops" class="farm-crops"></div></section>
+          <section class="farm-panel"><h3>🚜 Deine Felder</h3><div id="farm-fields" class="farm-fields">Lade Felder …</div></section>
+          <section class="leaderboard-panel"><div class="panel-heading"><div><h3>🏅 Farming Rangliste</h3><p>Top 10 mit denselben Abzeichen wie beim Klicker.</p></div><button class="leaderboard-icon-button" id="farm-leaderboard-toggle" type="button" aria-label="Rangliste anzeigen" aria-expanded="false">🏆</button></div><div id="farm-leaderboard-wrap" class="hidden"><ol id="farm-leaderboard" class="leaderboard-list"></ol></div></section>
         </section>
         <section id="placeholder-page" class="welcome-card hidden">
           <h1 id="placeholder-title">Kommt später</h1>
@@ -502,14 +508,16 @@
         const admin = page === "admin";
         const files = page === "files";
         const clicker = page === "clicker";
+        const farming = page === "farming";
         document.querySelector("#clicker-page").classList.toggle("hidden", !clicker);
+        document.querySelector("#farming-page").classList.toggle("hidden", !farming);
         if (files && document.querySelector('[data-page="files"]').classList.contains("hidden")) return;
         document.querySelector("#files-page").classList.toggle("hidden", !files);
         document.querySelector("#home-page").classList.toggle("hidden", !home);
-        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files || clicker);
+        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files || clicker || farming);
         adminPage.classList.toggle("hidden", !admin);
-        document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (files ? "Dateien" : (clicker ? "Klicker" : "Aktivität")));
-        if (!files && !home && !admin && !clicker) document.querySelector("#placeholder-title").textContent = "Aktivität kommt später";
+        document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (files ? "Dateien" : (clicker ? "Klicker" : (farming ? "Farming" : "Aktivität"))));
+        if (!files && !home && !admin && !clicker && !farming) document.querySelector("#placeholder-title").textContent = "Aktivität kommt später";
         if (files) loadFiles();
         if (window.matchMedia("(max-width: 760px)").matches) sidebar.classList.remove("mobile-open");
       });
@@ -752,6 +760,14 @@
     document.querySelector("#clicker-super-upgrade").addEventListener("click",()=>{if(clickerScore<clickerSuperCost)return;clickerScore-=clickerSuperCost;clickerSuper+=10;clickerSuperCost=Math.ceil(clickerSuperCost*2.2);renderClicker();scheduleClickerSave();});
     document.querySelector("#leaderboard-refresh").addEventListener("click",loadLeaderboard);
     renderClicker(); loadClicker();
+    const crops={wheat:{n:"Weizen",i:"🌾",t:30,v:5},carrot:{n:"Karotten",i:"🥕",t:60,v:12},potato:{n:"Kartoffeln",i:"🥔",t:90,v:20},corn:{n:"Mais",i:"🌽",t:180,v:45}};
+    async function farmApi(a,b){const r=await fetch("api.php?action="+a,{method:b?"POST":"GET",credentials:"same-origin",headers:b?{"Content-Type":"application/json"}:{},body:b?JSON.stringify(b):undefined,cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Fehler");return d;}
+    async function renderFarm(){try{const d=await farmApi("farming-state");document.querySelector("#farm-coins").textContent=d.coins;document.querySelector("#farm-workers").textContent=d.workers.length;document.querySelector("#farm-ready").textContent=d.workers.filter(w=>w.ready).length;const cs=document.querySelector("#farm-crops");cs.replaceChildren();Object.entries(crops).forEach(([k,v])=>{const x=document.createElement("div");x.className="farm-crop";x.textContent=v.i+" "+v.n+" · "+v.v+" Münzen · "+v.t+" Sek.";cs.append(x);});const fs=document.querySelector("#farm-fields");fs.replaceChildren();if(!d.workers.length){fs.textContent="Stelle deinen ersten Farmer ein.";return;}d.workers.forEach(w=>{const x=document.createElement("div");x.className="farm-worker";const title=document.createElement("strong");title.textContent="👩‍🌾 Farmer #"+w.id;const sel=document.createElement("select");sel.className="admin-input";Object.entries(crops).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v.i+" "+v.n+" · "+v.v+" Münzen · "+v.t+" Sek.";o.selected=k===w.crop_key;sel.append(o);});sel.disabled=!!Number(w.claimed);sel.onchange=async()=>{try{await farmApi("farming-plant",{workerId:+w.id,crop:sel.value});renderFarm();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};const remain=Math.max(0,+w.started_at + +w.duration-Math.floor(Date.now()/1000));const st=document.createElement("p");st.textContent=Number(w.claimed)?"Ernte eingesammelt":remain?("Noch "+remain+" Sekunden"):"Bereit zum Ernten";const btn=document.createElement("button");btn.className="secondary-button";btn.type="button";btn.textContent="Ernten · "+w.reward+" Münzen";btn.disabled=!w.ready||!!Number(w.claimed);btn.onclick=async()=>{try{await farmApi("farming-collect",{workerId:+w.id});await renderFarm();loadFarmBoard();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};x.append(title,sel,st,btn);fs.append(x);});}catch(e){document.querySelector("#farm-fields").textContent=e.message;}}
+    async function loadFarmBoard(){const list=document.querySelector("#farm-leaderboard");try{const d=await farmApi("farming-leaderboard");list.replaceChildren();d.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.textContent="#"+u.rank;const name=document.createElement("strong");name.textContent=u.username;const score=document.createElement("strong");score.textContent=u.score+" Münzen verdient";const bs=document.createElement("span");bs.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;bs.append(tag);});li.append(rank,name,score,bs);list.append(li);});}catch{list.innerHTML="<li>Rangliste konnte nicht geladen werden.</li>";}}
+    document.querySelector("#farm-hire").onclick=async()=>{try{await farmApi("farming-hire",{});document.querySelector("#farm-message").textContent="Farmer eingestellt!";renderFarm();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};
+    document.querySelector("#leaderboard-toggle").onclick=()=>{const w=document.querySelector("#leaderboard-wrap"),b=document.querySelector("#leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadLeaderboard();};
+    document.querySelector("#farm-leaderboard-toggle").onclick=()=>{const w=document.querySelector("#farm-leaderboard-wrap"),b=document.querySelector("#farm-leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadFarmBoard();};
+    renderFarm();
 
     setAuthMode("login");
     checkSession();
