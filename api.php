@@ -73,6 +73,21 @@ try {
         password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS clicker_scores (
+        user_id INTEGER PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0, power INTEGER NOT NULL DEFAULT 1, upgrade_cost INTEGER NOT NULL DEFAULT 25,
+        auto_clicks INTEGER NOT NULL DEFAULT 0, auto_cost INTEGER NOT NULL DEFAULT 100, multiplier INTEGER NOT NULL DEFAULT 1,
+        multiplier_cost INTEGER NOT NULL DEFAULT 250, super_bonus INTEGER NOT NULL DEFAULT 0, super_cost INTEGER NOT NULL DEFAULT 1000,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )');
+    $clickerColumns = $db->query('PRAGMA table_info(clicker_scores)')->fetchAll();
+    $clickerColumnNames = array_column($clickerColumns, 'name');
+    foreach (['auto_clicks' => 'INTEGER NOT NULL DEFAULT 0', 'auto_cost' => 'INTEGER NOT NULL DEFAULT 100', 'multiplier' => 'INTEGER NOT NULL DEFAULT 1', 'multiplier_cost' => 'INTEGER NOT NULL DEFAULT 250', 'super_bonus' => 'INTEGER NOT NULL DEFAULT 0', 'super_cost' => 'INTEGER NOT NULL DEFAULT 1000'] as $column => $definition) {
+        if (!in_array($column, $clickerColumnNames, true)) $db->exec('ALTER TABLE clicker_scores ADD COLUMN ' . $column . ' ' . $definition);
+    }
+    $db->exec('CREATE TABLE IF NOT EXISTS user_badges (
+        user_id INTEGER NOT NULL, badge_key TEXT NOT NULL, awarded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(user_id, badge_key), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )');
     $db->exec('CREATE TABLE IF NOT EXISTS module_permissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username_key TEXT NOT NULL,
@@ -318,6 +333,60 @@ if ($action === 'update-profile') {
     respond(200, ['username' => (string)($_SESSION['username'] ?? '')]);
 }
 
+
+if ($action === 'clicker-state') {
+    if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+    requireLogin();
+    $userId = (int)$_SESSION['user_id'];
+    $db->prepare('INSERT OR IGNORE INTO clicker_scores (user_id) VALUES (?)')->execute([$userId]);
+    $stmt = $db->prepare('SELECT score, power, upgrade_cost, auto_clicks, auto_cost, multiplier, multiplier_cost, super_bonus, super_cost FROM clicker_scores WHERE user_id = ?');
+    $stmt->execute([$userId]); $s = $stmt->fetch();
+    $rankStmt = $db->prepare('SELECT COUNT(*) + 1 FROM clicker_scores WHERE score > (SELECT score FROM clicker_scores WHERE user_id = ?)'); $rankStmt->execute([$userId]);
+    respond(200, ['score'=>(int)$s['score'],'power'=>(int)$s['power'],'cost'=>(int)$s['upgrade_cost'],'auto'=>(int)$s['auto_clicks'],'autoCost'=>(int)$s['auto_cost'],'multiplier'=>(int)$s['multiplier'],'multiplierCost'=>(int)$s['multiplier_cost'],'super'=>(int)$s['super_bonus'],'superCost'=>(int)$s['super_cost'],'rank'=>(int)$rankStmt->fetchColumn()]);
+}
+if ($action === 'clicker-save') {
+    if ($method !== 'POST') { header('Allow: POST'); respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']); }
+    requireLogin();
+    $body = json_decode(file_get_contents('php://input') ?: '', true);
+    if (!is_array($body)) respond(400, ['error' => 'Ungültige Anfrage.']);
+    foreach (['score','power','cost','auto','autoCost','multiplier','multiplierCost','super','superCost'] as $key) if (!isset($body[$key]) || !is_int($body[$key])) respond(400, ['error' => 'Ungültiger Spielstand.']);
+    $score=$body['score']; $power=$body['power']; $cost=$body['cost']; $auto=$body['auto']; $autoCost=$body['autoCost']; $multiplier=$body['multiplier']; $multiplierCost=$body['multiplierCost']; $super=$body['super']; $superCost=$body['superCost'];
+    if ($score<0 || $score>2000000000 || $power<1 || $power>1000000 || $cost<25 || $cost>2000000000 || $auto<0 || $auto>1000000 || $autoCost<100 || $autoCost>2000000000 || $multiplier<1 || $multiplier>1000000 || $multiplierCost<250 || $multiplierCost>2000000000 || $super<0 || $super>1000000 || $superCost<1000 || $superCost>2000000000) respond(400, ['error'=>'Spielstand außerhalb des erlaubten Bereichs.']);
+    $db->prepare('INSERT INTO clicker_scores (user_id,score,power,upgrade_cost,auto_clicks,auto_cost,multiplier,multiplier_cost,super_bonus,super_cost,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET score=excluded.score,power=excluded.power,upgrade_cost=excluded.upgrade_cost,auto_clicks=excluded.auto_clicks,auto_cost=excluded.auto_cost,multiplier=excluded.multiplier,multiplier_cost=excluded.multiplier_cost,super_bonus=excluded.super_bonus,super_cost=excluded.super_cost,updated_at=CURRENT_TIMESTAMP')
+        ->execute([(int)$_SESSION['user_id'],$score,$power,$cost,$auto,$autoCost,$multiplier,$multiplierCost,$super,$superCost]);
+    respond(200, ['saved'=>true]);
+}
+if ($action === 'clicker-leaderboard') {
+    if ($method !== 'GET') respond(405, ['error'=>'Diese Anfrage ist nicht erlaubt.']); requireLogin();
+    $rows=$db->query('SELECT u.id,u.username,u.created_at,u.is_admin,COALESCE(c.score,0) score FROM users u LEFT JOIN clicker_scores c ON c.user_id=u.id ORDER BY score DESC,u.username COLLATE NOCASE ASC LIMIT 10')->fetchAll();
+    $users=[];
+    foreach($rows as $i=>$row) {
+        $uid=(int)$row['id']; $score=(int)$row['score']; $badges=[];
+        if ((int)$row['is_admin']===1 || strtolower((string)$row['username'])==='antonfischle') $badges[]=['key'=>'admin','label'=>'Admin','icon'=>'🛡️'];
+        if (strtotime((string)$row['created_at'])<=time()-31536000) $badges[]=['key'=>'year-member','label'=>'1 Jahr Mitglied','icon'=>'🎂'];
+        if ($score>0 && $i<10) $badges[]=['key'=>'clicker-top-10','label'=>'Clicker Top 10','icon'=>'🏆'];
+        if ($score>0 && $i===0) $badges[]=['key'=>'clicker-top-1','label'=>'Clicker Top 1','icon'=>'👑'];
+        $bs=$db->prepare('SELECT badge_key FROM user_badges WHERE user_id=?'); $bs->execute([$uid]);
+        foreach($bs->fetchAll(PDO::FETCH_COLUMN) as $key) { if($key==='supporter') $badges[]=['key'=>'supporter','label'=>'Supporter','icon'=>'💚']; if($key==='vip') $badges[]=['key'=>'vip','label'=>'VIP','icon'=>'💎']; }
+        $users[]=['username'=>(string)$row['username'],'score'=>$score,'rank'=>$i+1,'badges'=>$badges];
+    }
+    respond(200,['users'=>$users]);
+}
+if ($action === 'user-profile') {
+    if ($method !== 'GET') respond(405,['error'=>'Diese Anfrage ist nicht erlaubt.']); requireLogin();
+    $username=strtolower(trim((string)($_GET['username']??''))); $stmt=$db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE username_key=?'); $stmt->execute([$username]); $u=$stmt->fetch();
+    if(!$u) respond(404,['error'=>'Benutzer nicht gefunden.']);
+    $uid=(int)$u['id']; $ss=$db->prepare('SELECT score FROM clicker_scores WHERE user_id=?'); $ss->execute([$uid]); $score=(int)($ss->fetchColumn()?:0);
+    $rankStmt=$db->prepare('SELECT COUNT(*)+1 FROM clicker_scores WHERE score>?'); $rankStmt->execute([$score]); $rank=(int)$rankStmt->fetchColumn(); $badges=[];
+    if((int)$u['is_admin']===1 || $username==='antonfischle') $badges[]=['key'=>'admin','label'=>'Admin','icon'=>'🛡️'];
+    if(strtotime((string)$u['created_at'])<=time()-31536000) $badges[]=['key'=>'year-member','label'=>'1 Jahr Mitglied','icon'=>'🎂'];
+    if($score>0 && $rank<=10) $badges[]=['key'=>'clicker-top-10','label'=>'Clicker Top 10','icon'=>'🏆'];
+    if($score>0 && $rank===1) $badges[]=['key'=>'clicker-top-1','label'=>'Clicker Top 1','icon'=>'👑'];
+    $bs=$db->prepare('SELECT badge_key FROM user_badges WHERE user_id=?'); $bs->execute([$uid]);
+    foreach($bs->fetchAll(PDO::FETCH_COLUMN) as $key) { if($key==='supporter') $badges[]=['key'=>'supporter','label'=>'Supporter','icon'=>'💚']; if($key==='vip') $badges[]=['key'=>'vip','label'=>'VIP','icon'=>'💎']; }
+    respond(200,['username'=>(string)$u['username'],'score'=>$score,'rank'=>$rank,'badges'=>$badges]);
+}
 
 if ($action === 'admin-info') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
