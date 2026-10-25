@@ -111,8 +111,22 @@ function requireAdmin(): void {
     if (!isAdmin()) respond(403, ['error' => 'Nur Administratoren dürfen diese Funktion verwenden.']);
 }
 function requireLogin(): void {
+    global $db;
     if (empty($_SESSION['user_id'])) {
         respond(401, ['error' => 'Bitte melde dich zuerst an.']);
+    }
+    $stmt = $db->prepare('SELECT is_banned FROM users WHERE id = ?');
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $isBanned = $stmt->fetchColumn();
+    if ($isBanned === false || (int)$isBanned === 1) {
+        $_SESSION = [];
+        session_destroy();
+        respond(403, ['error' => 'Dieses Benutzerkonto wurde gesperrt.']);
+    }
+    if (ipIsBanned($db, currentIpKey())) {
+        $_SESSION = [];
+        session_destroy();
+        respond(403, ['error' => 'Diese IP-Adresse wurde gesperrt.']);
     }
 }
 function currentIpKey(): string {
@@ -327,6 +341,9 @@ if ($action === 'admin-user-action') {
         } else {
             $ipKey = (string)($target['last_ip_key'] ?? '');
             if ($ipKey === '') respond(400, ['error' => 'Für diesen Benutzer ist noch keine IP-Adresse gespeichert. Der Benutzer muss sich erst anmelden.']);
+            if ($operation === 'ipban' && $ipKey === currentIpKey()) {
+                respond(400, ['error' => 'Diese IP-Adresse ist auch deine aktuelle Admin-IP. Der Bann wurde zum Schutz deines Zugangs abgebrochen.']);
+            }
             if ($operation === 'ipban') {
                 $db->prepare('INSERT OR IGNORE INTO banned_ips (ip_key) VALUES (?)')->execute([$ipKey]);
             } else {
