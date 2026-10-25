@@ -55,6 +55,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
           <span class="nav-label">Aktivität</span>
         </button>
+        <button class="nav-item hidden" id="admin-nav" type="button" data-page="admin">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span class="nav-label">Admin</span>
+        </button>
       </nav>
       <div class="sidebar-bottom">
         <div class="profile-menu hidden" id="profile-menu" role="menu">
@@ -113,6 +117,20 @@
         <section id="placeholder-page" class="welcome-card hidden">
           <h1 id="placeholder-title">Kommt später</h1>
           <p>Dieser Bereich ist vorbereitet und kann später erweitert werden.</p>
+        </section>
+        <section id="admin-page" class="admin-page hidden">
+          <div class="dashboard-heading"><div><p class="eyebrow">ADMINISTRATION</p><h1>Admin-Bereich</h1><p class="dashboard-subtitle">Steuere, welche Benutzer auf Module zugreifen dürfen.</p></div><span class="live-pill">Administrator</span></div>
+          <div class="panel-card admin-panel">
+            <div class="panel-heading"><div><h2>Modulzugriff verwalten</h2><p>Änderungen werden serverseitig gespeichert.</p></div></div>
+            <label class="admin-label" for="permission-scope">Für wen gilt die Änderung?</label>
+            <select id="permission-scope" class="admin-input"><option value="all">Alle Benutzer</option><option value="user">Ein bestimmter Benutzer</option></select>
+            <div id="permission-user-wrap" class="hidden"><label class="admin-label" for="permission-user">Benutzer auswählen</label><select id="permission-user" class="admin-input"></select></div>
+            <label class="admin-label" for="permission-module">Modul</label>
+            <select id="permission-module" class="admin-input"><option value="files">Dateien</option><option value="activity">Aktivität</option></select>
+            <div class="admin-actions"><button id="permission-lock" class="primary-button" type="button">Zugriff sperren</button><button id="permission-unlock" class="secondary-button" type="button">Zugriff erlauben</button></div>
+            <p id="admin-message" class="form-message" role="status"></p>
+          </div>
+          <div class="panel-card admin-panel"><div class="panel-heading"><div><h2>Hinweis</h2><p>Die Administratorrechte sind aktuell für den Benutzernamen <strong>Antonfischle</strong> vorgesehen. Weitere Admins werden später in der Serverkonfiguration ergänzt.</p></div></div></div>
         </section>
       </div>
     </main>
@@ -208,6 +226,55 @@
     }
     authSwitch.addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
 
+ 
+    const adminNav = document.querySelector("#admin-nav");
+    const adminPage = document.querySelector("#admin-page");
+    const adminMessage = document.querySelector("#admin-message");
+    const permissionScope = document.querySelector("#permission-scope");
+    const permissionUserWrap = document.querySelector("#permission-user-wrap");
+    const permissionUser = document.querySelector("#permission-user");
+    const permissionModule = document.querySelector("#permission-module");
+    function setAdminMessage(message, success = false) {
+      adminMessage.textContent = message;
+      adminMessage.classList.toggle("success", success);
+    }
+    async function initAdmin() {
+      try {
+        const response = await fetch("api.php?action=admin-info", { credentials: "same-origin", cache: "no-store" });
+        const info = await response.json();
+        if (!response.ok || !info.isAdmin) return;
+        adminNav.classList.remove("hidden");
+        const usersResponse = await fetch("api.php?action=admin-users", { credentials: "same-origin", cache: "no-store" });
+        const usersData = await usersResponse.json();
+        if (usersResponse.ok) {
+          permissionUser.innerHTML = "";
+          usersData.users.filter(name => name.toLowerCase() !== currentUsername.toLowerCase()).forEach(name => {
+            const option = document.createElement("option"); option.value = name; option.textContent = name; permissionUser.append(option);
+          });
+          if (!permissionUser.options.length) {
+            const option = document.createElement("option"); option.value = currentUsername; option.textContent = currentUsername; permissionUser.append(option);
+          }
+        }
+      } catch {}
+    }
+    permissionScope.addEventListener("change", () => permissionUserWrap.classList.toggle("hidden", permissionScope.value !== "user"));
+    async function setPermission(allowed) {
+      const scope = permissionScope.value;
+      const username = permissionUser.value;
+      if (scope === "user" && !username) { setAdminMessage("Es gibt keinen Benutzer zur Auswahl."); return; }
+      try {
+        const response = await fetch("api.php?action=admin-permissions", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ scope, username, module: permissionModule.value, allowed })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) { setAdminMessage(result.error || "Die Berechtigung konnte nicht geändert werden."); return; }
+        setAdminMessage((allowed ? "Zugriff erlaubt für " : "Zugriff gesperrt für ") + (scope === "all" ? "alle Benutzer." : username) + ".", true);
+      } catch { setAdminMessage("Server nicht erreichbar."); }
+    }
+    document.querySelector("#permission-lock").addEventListener("click", () => setPermission(false));
+    document.querySelector("#permission-unlock").addEventListener("click", () => setPermission(true));
+
     function showApp(username) {
       currentUsername = username || "Benutzer";
       authView.classList.add("hidden");
@@ -217,6 +284,7 @@
       document.querySelector("#profile-avatar").textContent = currentUsername.slice(0, 1).toUpperCase();
       document.querySelector("#welcome-title").textContent = "Willkommen, " + currentUsername;
       document.querySelector("#dashboard-username").textContent = currentUsername;
+      initAdmin();
       document.querySelector("#settings-username").value = currentUsername;
     }
     async function checkSession() {
@@ -285,9 +353,11 @@
         document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
         const page = button.dataset.page;
         const home = page === "home";
+        const admin = page === "admin";
         document.querySelector("#home-page").classList.toggle("hidden", !home);
-        document.querySelector("#placeholder-page").classList.toggle("hidden", home);
-        document.querySelector("#page-title").textContent = home ? "Startseite" : (page === "files" ? "Dateien" : "Aktivität");
+        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin);
+        adminPage.classList.toggle("hidden", !admin);
+        document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (page === "files" ? "Dateien" : "Aktivität"));
         document.querySelector("#placeholder-title").textContent = page === "files" ? "Dateien kommen später" : "Aktivität kommt später";
         if (window.matchMedia("(max-width: 760px)").matches) sidebar.classList.remove("mobile-open");
       });
