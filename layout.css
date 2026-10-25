@@ -184,3 +184,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .admin-actions .secondary-button { border: 1px solid var(--border); background: var(--surface-soft); color: var(--text); }
 .form-message { min-height: 20px; margin: 12px 0 0; color: var(--danger); font-size: 12px; }
 .form-message.success { color: var(--accent); }
+
+
+/* Admin user management */
+.user-count-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; margin: 8px 0 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); }
+.user-count-card span { color: var(--muted); font-size: 13px; }
+.user-count-card strong { font-size: 26px; letter-spacing: -.5px; }
+.user-status { min-height: 20px; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.user-admin-actions { margin-top: 10px; }
+.user-admin-actions .primary-button { background: var(--danger); border-color: var(--danger); }
+.user-admin-actions .secondary-button { border-color: var(--border); background: var(--surface-soft); color: var(--text); }
