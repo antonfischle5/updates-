@@ -400,7 +400,10 @@ if ($action === 'admin-permissions') {
     if ($scope === 'user' && !preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) respond(400, ['error' => 'Bitte wähle einen gültigen Benutzer.']);
     try {
         if ($scope === 'all') {
-            $db->prepare('DELETE FROM module_permissions WHERE username_key = ? AND module = ?')->execute(['*', $module]);
+            // Eine globale Änderung muss wirklich für alle Konten gelten.
+            // Alte benutzerspezifische Ausnahmen für dieses Modul entfernen,
+            // damit ein zuvor erlaubter Einzelzugriff die globale Sperre nicht aushebelt.
+            $db->prepare('DELETE FROM module_permissions WHERE module = ?')->execute([$module]);
             $stmt = $db->prepare('INSERT INTO module_permissions (username_key, module, allowed) VALUES (?, ?, ?)');
             $stmt->execute(['*', $module, $allowed]);
         } else {
