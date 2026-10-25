@@ -85,7 +85,7 @@ try {
         if (!in_array($column, $clickerColumnNames, true)) $db->exec('ALTER TABLE clicker_scores ADD COLUMN ' . $column . ' ' . $definition);
     }
     $db->exec('CREATE TABLE IF NOT EXISTS farming_state (user_id INTEGER PRIMARY KEY, coins INTEGER NOT NULL DEFAULT 100, total_earned INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
-    $db->exec('CREATE TABLE IF NOT EXISTS farming_workers (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, crop_key TEXT NOT NULL DEFAULT 'wheat', started_at INTEGER NOT NULL, duration INTEGER NOT NULL, reward INTEGER NOT NULL, claimed INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
+    $db->exec("CREATE TABLE IF NOT EXISTS farming_workers (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, crop_key TEXT NOT NULL DEFAULT 'wheat', started_at INTEGER NOT NULL, duration INTEGER NOT NULL, reward INTEGER NOT NULL, claimed INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)");
     $db->exec('CREATE TABLE IF NOT EXISTS user_badges (
         user_id INTEGER NOT NULL, badge_key TEXT NOT NULL, awarded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(user_id, badge_key), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
