@@ -239,10 +239,13 @@
       adminMessage.classList.toggle("success", success);
     }
     async function initAdmin() {
+      // Standardmäßig bleibt der Admin-Menüpunkt für alle verborgen.
+      adminNav.classList.add("hidden");
+      adminPage.classList.add("hidden");
       try {
         const response = await fetch("api.php?action=admin-info", { credentials: "same-origin", cache: "no-store" });
         const info = await response.json();
-        if (!response.ok || !info.isAdmin) return;
+        if (!response.ok || info.isAdmin !== true) return;
         adminNav.classList.remove("hidden");
         const usersResponse = await fetch("api.php?action=admin-users", { credentials: "same-origin", cache: "no-store" });
         const usersData = await usersResponse.json();
@@ -286,6 +289,9 @@
     }
 
     function showApp(username) {
+      // Beim Benutzerwechsel oder Neuladen Admin-Funktionen zuerst immer ausblenden.
+      adminNav.classList.add("hidden");
+      adminPage.classList.add("hidden");
       currentUsername = username || "Benutzer";
       authView.classList.add("hidden");
       appView.classList.remove("hidden");
@@ -363,6 +369,11 @@
       button.addEventListener("click", () => {
         document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
         const page = button.dataset.page;
+        // Admin-Seite nur öffnen, wenn der Server den Admin-Menüpunkt freigegeben hat.
+        if (page === "admin" && adminNav.classList.contains("hidden")) {
+          button.classList.remove("active");
+          return;
+        }
         const home = page === "home";
         const admin = page === "admin";
         document.querySelector("#home-page").classList.toggle("hidden", !home);
