@@ -85,6 +85,18 @@ try {
         ip_key TEXT NOT NULL,
         attempted_at INTEGER NOT NULL
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS banned_ips (
+        ip_key TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )');
+    $userColumns = $db->query('PRAGMA table_info(users)')->fetchAll();
+    $columnNames = array_column($userColumns, 'name');
+    if (!in_array('is_banned', $columnNames, true)) {
+        $db->exec('ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!in_array('last_ip_key', $columnNames, true)) {
+        $db->exec('ALTER TABLE users ADD COLUMN last_ip_key TEXT');
+    }
 } catch (Throwable $error) {
     error_log('Auth database setup failed: ' . $error->getMessage());
     respond(500, ['error' => 'Die Datenbank konnte nicht geöffnet werden. Prüfe die SQLite-Unterstützung und die Ordnerrechte.']);
@@ -103,6 +115,14 @@ function requireLogin(): void {
         respond(401, ['error' => 'Bitte melde dich zuerst an.']);
     }
 }
+function currentIpKey(): string {
+    return hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+}
+function ipIsBanned(PDO $db, string $ipKey): bool {
+    $stmt = $db->prepare('SELECT 1 FROM banned_ips WHERE ip_key = ?');
+    $stmt->execute([$ipKey]);
+    return (bool)$stmt->fetchColumn();
+}
 
 if ($action === 'register' || $action === 'login') {
     if ($method !== 'POST') {
@@ -112,6 +132,9 @@ if ($action === 'register' || $action === 'login') {
 
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
     $ipKey = hash('sha256', $ip);
+    if (ipIsBanned($db, $ipKey)) {
+        respond(403, ['error' => 'Diese IP-Adresse wurde gesperrt.']);
+    }
     $cutoff = time() - 900;
     try {
         $db->prepare('DELETE FROM auth_attempts WHERE attempted_at < ?')->execute([$cutoff]);
@@ -148,8 +171,8 @@ if ($action === 'register' || $action === 'login') {
         }
         $hash = password_hash($password, $algo);
         try {
-            $stmt = $db->prepare('INSERT INTO users (username, username_key, password_hash) VALUES (?, ?, ?)');
-            $stmt->execute([$username, strtolower($username), $hash]);
+            $stmt = $db->prepare('INSERT INTO users (username, username_key, password_hash, last_ip_key) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$username, strtolower($username), $hash, $ipKey]);
             $userId = (int)$db->lastInsertId();
         } catch (PDOException $error) {
             if (str_contains(strtolower($error->getMessage()), 'unique')) {
@@ -165,12 +188,19 @@ if ($action === 'register' || $action === 'login') {
         respond(201, ['username' => $username]);
     }
 
-    $stmt = $db->prepare('SELECT id, username, password_hash FROM users WHERE username_key = ?');
+    $stmt = $db->prepare('SELECT id, username, password_hash, is_banned FROM users WHERE username_key = ?');
     $stmt->execute([strtolower($username)]);
     $user = $stmt->fetch();
     if (!$user || !password_verify($password, (string)$user['password_hash'])) {
         respond(401, ['error' => 'Benutzername oder Passwort ist falsch.']);
     }
+    if ((int)$user['is_banned'] === 1) {
+        respond(403, ['error' => 'Dieses Benutzerkonto wurde gesperrt.']);
+    }
+    if (ipIsBanned($db, $ipKey)) {
+        respond(403, ['error' => 'Diese IP-Adresse wurde gesperrt.']);
+    }
+    $db->prepare('UPDATE users SET last_ip_key = ? WHERE id = ?')->execute([$ipKey, (int)$user['id']]);
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int)$user['id'];
     $_SESSION['username'] = (string)$user['username'];
@@ -268,9 +298,46 @@ if ($action === 'admin-info') {
 if ($action === 'admin-users') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireAdmin();
-    $rows = $db->query('SELECT username FROM users ORDER BY username COLLATE NOCASE')->fetchAll();
-    $users = array_map(static fn(array $row): string => (string)$row['username'], $rows);
-    respond(200, ['users' => $users, 'modules' => ['files' => 'Dateien', 'activity' => 'Aktivität']]);
+    $rows = $db->query('SELECT username, is_banned FROM users ORDER BY username COLLATE NOCASE')->fetchAll();
+    $users = array_map(static fn(array $row): array => ['username' => (string)$row['username'], 'banned' => (int)$row['is_banned'] === 1], $rows);
+    respond(200, ['users' => $users, 'userCount' => count($users), 'modules' => ['files' => 'Dateien', 'activity' => 'Aktivität']]);
+}
+
+if ($action === 'admin-user-action') {
+    if ($method !== 'POST') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+    requireAdmin();
+    $raw = file_get_contents('php://input');
+    $body = json_decode($raw === false ? '' : $raw, true);
+    if (!is_array($body)) respond(400, ['error' => 'Ungültige Anfrage.']);
+    $username = is_string($body['username'] ?? null) ? trim($body['username']) : '';
+    $operation = (string)($body['operation'] ?? '');
+    if (!preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) respond(400, ['error' => 'Ungültiger Benutzername.']);
+    if (!in_array($operation, ['ban', 'unban', 'ipban', 'ipunban'], true)) respond(400, ['error' => 'Unbekannte Aktion.']);
+    if (strtolower($username) === strtolower((string)($_SESSION['username'] ?? ''))) {
+        respond(400, ['error' => 'Du kannst dein eigenes Administratorkonto nicht sperren.']);
+    }
+    $stmt = $db->prepare('SELECT id, username, is_banned, last_ip_key FROM users WHERE username_key = ?');
+    $stmt->execute([strtolower($username)]);
+    $target = $stmt->fetch();
+    if (!$target) respond(404, ['error' => 'Benutzer nicht gefunden.']);
+    if (strtolower((string)$target['username']) === 'antonfischle') respond(403, ['error' => 'Das Administratorkonto kann nicht gesperrt werden.']);
+    try {
+        if ($operation === 'ban' || $operation === 'unban') {
+            $db->prepare('UPDATE users SET is_banned = ? WHERE id = ?')->execute([$operation === 'ban' ? 1 : 0, (int)$target['id']]);
+        } else {
+            $ipKey = (string)($target['last_ip_key'] ?? '');
+            if ($ipKey === '') respond(400, ['error' => 'Für diesen Benutzer ist noch keine IP-Adresse gespeichert. Der Benutzer muss sich erst anmelden.']);
+            if ($operation === 'ipban') {
+                $db->prepare('INSERT OR IGNORE INTO banned_ips (ip_key) VALUES (?)')->execute([$ipKey]);
+            } else {
+                $db->prepare('DELETE FROM banned_ips WHERE ip_key = ?')->execute([$ipKey]);
+            }
+        }
+    } catch (Throwable $error) {
+        error_log('Admin user action failed: ' . $error->getMessage());
+        respond(500, ['error' => 'Die Aktion konnte nicht gespeichert werden.']);
+    }
+    respond(200, ['ok' => true, 'operation' => $operation, 'username' => (string)$target['username']]);
 }
 
 if ($action === 'admin-permissions') {
