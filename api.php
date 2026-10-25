@@ -417,10 +417,16 @@ if ($action === 'profile-get') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireLogin();
     $requestedUsername = trim((string)($_GET['username'] ?? ''));
-    $username = strtolower($requestedUsername !== '' ? $requestedUsername : (string)($_SESSION['username'] ?? ''));
-    $stmt = $db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE username_key=?');
-    $stmt->execute([$username]); $u = $stmt->fetch();
+    if ($requestedUsername === '') {
+        $stmt = $db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE id=?');
+        $stmt->execute([(int)$_SESSION['user_id']]);
+    } else {
+        $stmt = $db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE username_key=?');
+        $stmt->execute([strtolower($requestedUsername)]);
+    }
+    $u = $stmt->fetch();
     if (!$u) respond(404, ['error' => 'Benutzer nicht gefunden.']);
+    $username = strtolower((string)$u['username']);
     $uid = (int)$u['id'];
     $p = $db->prepare('SELECT bio,avatar_url FROM user_profiles WHERE user_id=?'); $p->execute([$uid]);
     $profile = $p->fetch() ?: ['bio'=>'','avatar_url'=>''];
