@@ -33,7 +33,7 @@ session_start();
 $action = (string)($_GET['action'] ?? '');
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
-if (in_array($action, ['register', 'login', 'logout', 'update-profile', 'admin-permissions'], true) && $method === 'POST') {
+if (in_array($action, ['register', 'login', 'logout', 'update-profile', 'admin-permissions', 'admin-user-action'], true) && $method === 'POST') {
     $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
     if ($origin !== '') {
         $originParts = parse_url($origin);
