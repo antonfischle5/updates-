@@ -84,6 +84,8 @@ try {
     foreach (['auto_clicks' => 'INTEGER NOT NULL DEFAULT 0', 'auto_cost' => 'INTEGER NOT NULL DEFAULT 100', 'multiplier' => 'INTEGER NOT NULL DEFAULT 1', 'multiplier_cost' => 'INTEGER NOT NULL DEFAULT 250', 'super_bonus' => 'INTEGER NOT NULL DEFAULT 0', 'super_cost' => 'INTEGER NOT NULL DEFAULT 1000'] as $column => $definition) {
         if (!in_array($column, $clickerColumnNames, true)) $db->exec('ALTER TABLE clicker_scores ADD COLUMN ' . $column . ' ' . $definition);
     }
+    $db->exec('CREATE TABLE IF NOT EXISTS farming_state (user_id INTEGER PRIMARY KEY, coins INTEGER NOT NULL DEFAULT 100, total_earned INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
+    $db->exec('CREATE TABLE IF NOT EXISTS farming_workers (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, crop_key TEXT NOT NULL DEFAULT 'wheat', started_at INTEGER NOT NULL, duration INTEGER NOT NULL, reward INTEGER NOT NULL, claimed INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
     $db->exec('CREATE TABLE IF NOT EXISTS user_badges (
         user_id INTEGER NOT NULL, badge_key TEXT NOT NULL, awarded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(user_id, badge_key), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -334,6 +336,21 @@ if ($action === 'update-profile') {
 }
 
 
+if ($action === 'farming-state') {
+ requireLogin();$uid=(int)$_SESSION['user_id'];$db->prepare('INSERT OR IGNORE INTO farming_state(user_id) VALUES(?)')->execute([$uid]);$s=$db->prepare('SELECT coins,total_earned FROM farming_state WHERE user_id=?');$s->execute([$uid]);$w=$db->prepare('SELECT id,crop_key,started_at,duration,reward,claimed FROM farming_workers WHERE user_id=? ORDER BY id');$w->execute([$uid]);$workers=[];foreach($w->fetchAll() as $x){$x['ready']=!(int)$x['claimed']&&time()>=(int)$x['started_at']+(int)$x['duration'];$workers[]=$x;} $x=$s->fetch();respond(200,['coins'=>(int)$x['coins'],'totalEarned'=>(int)$x['total_earned'],'workers'=>$workers]);
+}
+if ($action === 'farming-hire') {
+ requireLogin();$uid=(int)$_SESSION['user_id'];$db->beginTransaction();$db->prepare('INSERT OR IGNORE INTO farming_state(user_id) VALUES(?)')->execute([$uid]);$s=$db->prepare('SELECT coins FROM farming_state WHERE user_id=?');$s->execute([$uid]);if((int)$s->fetchColumn()<50){$db->rollBack();respond(400,['error'=>'Du brauchst 50 Münzen.']);}$q=$db->prepare('SELECT COUNT(*) FROM farming_workers WHERE user_id=?');$q->execute([$uid]);if((int)$q->fetchColumn()>=50){$db->rollBack();respond(400,['error'=>'Maximal 50 Farmer.']);}$db->prepare('UPDATE farming_state SET coins=coins-50 WHERE user_id=?')->execute([$uid]);$db->prepare("INSERT INTO farming_workers(user_id,crop_key,started_at,duration,reward) VALUES(?,'wheat',?,30,5)")->execute([$uid,time()]);$db->commit();respond(200,['hired'=>true]);
+}
+if ($action === 'farming-plant') {
+ requireLogin();$b=json_decode(file_get_contents('php://input')?:'',true);$c=['wheat'=>[30,5],'carrot'=>[60,12],'potato'=>[90,20],'corn'=>[180,45]];$id=(int)($b['workerId']??0);$key=(string)($b['crop']??'');if(!isset($c[$key]))respond(400,['error'=>'Ungültige Pflanze.']);$uid=(int)$_SESSION['user_id'];$q=$db->prepare('SELECT claimed FROM farming_workers WHERE id=? AND user_id=?');$q->execute([$id,$uid]);$x=$q->fetch();if(!$x||$x['claimed'])respond(404,['error'=>'Farmer nicht gefunden.']);$db->prepare('UPDATE farming_workers SET crop_key=?,started_at=?,duration=?,reward=? WHERE id=? AND user_id=?')->execute([$key,time(),$c[$key][0],$c[$key][1],$id,$uid]);respond(200,['planted'=>true]);
+}
+if ($action === 'farming-collect') {
+ requireLogin();$b=json_decode(file_get_contents('php://input')?:'',true);$id=(int)($b['workerId']??0);$uid=(int)$_SESSION['user_id'];$db->beginTransaction();$q=$db->prepare('SELECT started_at,duration,reward,claimed FROM farming_workers WHERE id=? AND user_id=?');$q->execute([$id,$uid]);$x=$q->fetch();if(!$x||$x['claimed']||time()<(int)$x['started_at']+(int)$x['duration']){$db->rollBack();respond(400,['error'=>'Ernte noch nicht bereit.']);}$db->prepare('UPDATE farming_workers SET claimed=1 WHERE id=?')->execute([$id]);$db->prepare('UPDATE farming_state SET coins=coins+?,total_earned=total_earned+? WHERE user_id=?')->execute([(int)$x['reward'],(int)$x['reward'],$uid]);$db->commit();respond(200,['collected'=>true]);
+}
+if ($action === 'farming-leaderboard') {
+ requireLogin();$rows=$db->query('SELECT u.id,u.username,u.created_at,u.is_admin,COALESCE(f.total_earned,0) score FROM users u LEFT JOIN farming_state f ON f.user_id=u.id ORDER BY score DESC,u.username COLLATE NOCASE LIMIT 10')->fetchAll();$out=[];foreach($rows as $i=>$r){$b=[];if((int)$r['is_admin']===1||strtolower($r['username'])==='antonfischle')$b[]=['icon'=>'🛡️','label'=>'Admin'];if(strtotime($r['created_at'])<=time()-31536000)$b[]=['icon'=>'🎂','label'=>'1 Jahr Mitglied'];if((int)$r['score']>0&&$i<10)$b[]=['icon'=>'🏆','label'=>'Farming Top 10'];if((int)$r['score']>0&&$i===0)$b[]=['icon'=>'👑','label'=>'Farming Top 1'];$q=$db->prepare('SELECT badge_key FROM user_badges WHERE user_id=?');$q->execute([(int)$r['id']]);foreach($q->fetchAll(PDO::FETCH_COLUMN) as $k){if($k==='supporter')$b[]=['icon'=>'💚','label'=>'Supporter'];if($k==='vip')$b[]=['icon'=>'💎','label'=>'VIP'];}$out[]=['username'=>$r['username'],'score'=>(int)$r['score'],'rank'=>$i+1,'badges'=>$b];}respond(200,['users'=>$out]);
+}
 if ($action === 'clicker-state') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireLogin();
