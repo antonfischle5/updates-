@@ -73,6 +73,7 @@ try {
         password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS user_profiles (user_id INTEGER PRIMARY KEY, bio TEXT NOT NULL DEFAULT \'\', avatar_url TEXT NOT NULL DEFAULT \'\', FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
     $db->exec('CREATE TABLE IF NOT EXISTS clicker_scores (
         user_id INTEGER PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0, power INTEGER NOT NULL DEFAULT 1, upgrade_cost INTEGER NOT NULL DEFAULT 25,
         auto_clicks INTEGER NOT NULL DEFAULT 0, auto_cost INTEGER NOT NULL DEFAULT 100, multiplier INTEGER NOT NULL DEFAULT 1,
@@ -397,6 +398,43 @@ if ($action === 'clicker-leaderboard') {
     }
     respond(200,['users'=>$users]);
 }
+
+if ($action === 'profile-save') {
+    if ($method !== 'POST') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+    requireLogin();
+    $input = json_decode((string)file_get_contents('php://input'), true);
+    if (!is_array($input)) respond(400, ['error' => 'Ungültige Daten.']);
+    $bio = trim((string)($input['bio'] ?? ''));
+    $avatar = trim((string)($input['avatar_url'] ?? ''));
+    if (mb_strlen($bio) > 500) respond(400, ['error' => 'Die Bio darf höchstens 500 Zeichen lang sein.']);
+    if ($avatar !== '' && (!filter_var($avatar, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($avatar, PHP_URL_SCHEME)), ['https','http'], true))) respond(400, ['error' => 'Bitte gib eine gültige Bild-URL ein.']);
+    if (strlen($avatar) > 1500) respond(400, ['error' => 'Die Bild-URL ist zu lang.']);
+    $stmt = $db->prepare('INSERT INTO user_profiles(user_id,bio,avatar_url) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET bio=excluded.bio, avatar_url=excluded.avatar_url');
+    $stmt->execute([(int)$_SESSION['user_id'], $bio, $avatar]);
+    respond(200, ['saved' => true]);
+}
+if ($action === 'profile-get') {
+    if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+    requireLogin();
+    $username = strtolower(trim((string)($_GET['username'] ?? $_SESSION['username'] ?? '')));
+    $stmt = $db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE username_key=?');
+    $stmt->execute([$username]); $u = $stmt->fetch();
+    if (!$u) respond(404, ['error' => 'Benutzer nicht gefunden.']);
+    $uid = (int)$u['id'];
+    $p = $db->prepare('SELECT bio,avatar_url FROM user_profiles WHERE user_id=?'); $p->execute([$uid]);
+    $profile = $p->fetch() ?: ['bio'=>'','avatar_url'=>''];
+    $sc = $db->prepare('SELECT score FROM clicker_scores WHERE user_id=?'); $sc->execute([$uid]); $score=(int)($sc->fetchColumn() ?: 0);
+    $rk = $db->prepare('SELECT COUNT(*)+1 FROM clicker_scores WHERE score>?'); $rk->execute([$score]); $rank=(int)$rk->fetchColumn();
+    $badges=[];
+    if ((int)$u['is_admin']===1 || $username==='antonfischle') $badges[]=['label'=>'Admin','icon'=>'🛡️'];
+    if (strtotime((string)$u['created_at'])<=time()-31536000) $badges[]=['label'=>'1 Jahr Mitglied','icon'=>'🎂'];
+    if ($score>0 && $rank<=10) $badges[]=['label'=>'Clicker Top 10','icon'=>'🏆'];
+    if ($score>0 && $rank===1) $badges[]=['label'=>'Clicker Top 1','icon'=>'👑'];
+    $bs=$db->prepare('SELECT badge_key FROM user_badges WHERE user_id=?'); $bs->execute([$uid]);
+    foreach ($bs->fetchAll(PDO::FETCH_COLUMN) as $key) { if($key==='supporter') $badges[]=['label'=>'Supporter','icon'=>'💚']; if($key==='vip') $badges[]=['label'=>'VIP','icon'=>'💎']; }
+    respond(200, ['username'=>(string)$u['username'], 'bio'=>(string)$profile['bio'], 'avatar_url'=>(string)$profile['avatar_url'], 'badges'=>$badges, 'score'=>$score, 'rank'=>$rank, 'isOwn'=>((int)$u['id']===(int)$_SESSION['user_id'])]);
+}
+
 if ($action === 'user-profile') {
     if ($method !== 'GET') respond(405,['error'=>'Diese Anfrage ist nicht erlaubt.']); requireLogin();
     $username=strtolower(trim((string)($_GET['username']??''))); $stmt=$db->prepare('SELECT id,username,created_at,is_admin FROM users WHERE username_key=?'); $stmt->execute([$username]); $u=$stmt->fetch();
