@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Mein Bereich</title>
+  <link rel="stylesheet" href="layout.css">
+</head>
+<body>
+  <section id="auth-view" class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand"><div class="brand-mark">M</div></div>
+      <h1 id="auth-title">Willkommen zurück</h1>
+      <p class="auth-subtitle" id="auth-subtitle">Melde dich an oder erstelle ein Konto.</p>
+      <form id="auth-form">
+        <div class="form-field">
+          <label for="username">Benutzername</label>
+          <input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" required>
+        </div>
+        <div class="form-field">
+          <label for="password">Passwort</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="100" required>
+        </div>
+        <div class="form-field hidden" id="confirm-field">
+          <label for="confirm-password">Passwort bestätigen</label>
+          <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" minlength="6" maxlength="100">
+        </div>
+        <button class="primary-button" id="auth-submit" type="submit">Anmelden</button>
+        <p class="status-message" id="auth-message" role="status" aria-live="polite"></p>
+      </form>
+      <div class="auth-switch"><span id="auth-switch-text">Noch kein Konto?</span><button class="text-button" id="auth-switch" type="button">Registrieren</button></div>
+    </div>
+  </section>
+
+  <div id="app-view" class="app-shell hidden">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <div class="brand-mark">M</div>
+        <span class="brand-name">Mein Bereich</span>
+        <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Seitenleiste einklappen" title="Seitenleiste einklappen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+        </button>
+      </div>
+      <nav class="nav-list" aria-label="Hauptnavigation">
+        <button class="nav-item active" type="button" data-page="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-7h6v7"/></svg>
+          <span class="nav-label">Startseite</span>
+        </button>
+        <button class="nav-item" type="button" data-page="files" title="Kommt später">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11l2 2h4.5A2.5 2.5 0 0 1 20 7.5v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/></svg>
+          <span class="nav-label">Dateien</span>
+        </button>
+        <button class="nav-item" type="button" data-page="activity" title="Kommt später">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+          <span class="nav-label">Aktivität</span>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="profile-menu hidden" id="profile-menu" role="menu">
+          <div class="menu-heading"><strong id="menu-username">Benutzer</strong><small>Dein Konto</small></div>
+          <button class="menu-item" id="open-settings" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.6-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.6 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)"/></svg>
+            Einstellungen
+          </button>
+          <button class="menu-item danger" id="logout-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg>
+            Abmelden
+          </button>
+        </div>
+        <button class="profile-button" id="profile-button" type="button" aria-expanded="false" aria-haspopup="menu">
+          <span class="profile-avatar" id="profile-avatar">U</span>
+          <span class="profile-details"><span class="profile-name" id="profile-name">Benutzer</span><span class="profile-caption">Persönliches Konto</span></span>
+          <svg class="profile-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main" id="main-content">
+      <header class="main-header">
+        <button class="icon-button mobile-toggle" id="mobile-toggle" type="button" aria-label="Menü öffnen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <strong id="page-title">Startseite</strong>
+      </header>
+      <div class="page-content">
+        <section id="home-page">
+          <div class="welcome-card">
+            <h1 id="welcome-title">Willkommen!</h1>
+            <p>Du bist angemeldet. Hier entsteht dein persönlicher Bereich.</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card"><h2>Dein Profil</h2><p>Verwalte deinen Namen und dein Passwort über das Profilmenü unten links.</p></article>
+            <article class="feature-card"><h2>Weitere Funktionen</h2><p>Die Seitenleiste ist vorbereitet. Hier können später weitere Bereiche dazukommen.</p></article>
+          </div>
+        </section>
+        <section id="placeholder-page" class="welcome-card hidden">
+          <h1 id="placeholder-title">Kommt später</h1>
+          <p>Dieser Bereich ist vorbereitet und kann später erweitert werden.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settings-backdrop" role="presentation">
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-header">
+        <h2 id="settings-title">Einstellungen</h2>
+        <button class="icon-button" id="close-settings" type="button" aria-label="Einstellungen schließen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <section class="settings-section">
+          <h3>Darstellung</h3>
+          <p>Wähle zwischen hellem und dunklem Design.</p>
+          <div class="theme-row">
+            <strong>Farbschema</strong>
+            <div class="theme-select" role="group" aria-label="Farbschema">
+              <button id="theme-light" type="button" aria-pressed="true">Hell</button>
+              <button id="theme-dark" type="button" aria-pressed="false">Dunkel</button>
+            </div>
+          </div>
+        </section>
+        <form id="settings-form">
+          <section class="settings-section">
+            <h3>Benutzername ändern</h3>
+            <p>Der Name muss frei sein und 3–32 Zeichen enthalten (Buchstaben, Zahlen, _ oder -).</p>
+            <div class="form-field">
+              <label for="settings-username">Neuer Benutzername</label>
+              <input id="settings-username" name="username" minlength="3" maxlength="32" autocomplete="username" required>
+            </div>
+          </section>
+          <section class="settings-section">
+            <h3>Passwort ändern</h3>
+            <p>Wenn du dein Passwort nicht ändern möchtest, lass die beiden Passwortfelder leer.</p>
+            <div class="form-field"><label for="current-password">Aktuelles Passwort (erforderlich zum Speichern)</label><input id="current-password" type="password" autocomplete="current-password" required maxlength="100"></div>
+            <div class="form-field"><label for="new-password">Neues Passwort</label><input id="new-password" type="password" autocomplete="new-password" minlength="6" maxlength="100"></div>
+            <div class="form-field"><label for="confirm-new-password">Neues Passwort bestätigen</label><input id="confirm-new-password" type="password" autocomplete="new-password" minlength="6" maxlength="100"></div>
+          </section>
+          <p class="status-message" id="settings-message" role="status" aria-live="polite"></p>
+          <div class="settings-actions">
+            <button class="secondary-button" id="cancel-settings" type="button">Abbrechen</button>
+            <button class="primary-button settings-save" id="save-settings" type="submit">Änderungen speichern</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const authView = document.querySelector("#auth-view");
+    const appView = document.querySelector("#app-view");
+    const authForm = document.querySelector("#auth-form");
+    const authTitle = document.querySelector("#auth-title");
+    const authSubtitle = document.querySelector("#auth-subtitle");
+    const authSubmit = document.querySelector("#auth-submit");
+    const authMessage = document.querySelector("#auth-message");
+    const authSwitch = document.querySelector("#auth-switch");
+    const authSwitchText = document.querySelector("#auth-switch-text");
+    const confirmField = document.querySelector("#confirm-field");
+    const usernameInput = document.querySelector("#username");
+    const passwordInput = document.querySelector("#password");
+    const confirmPassword = document.querySelector("#confirm-password");
+    const sidebar = document.querySelector("#sidebar");
+    const mainContent = document.querySelector("#main-content");
+    const profileButton = document.querySelector("#profile-button");
+    const profileMenu = document.querySelector("#profile-menu");
+    const settingsBackdrop = document.querySelector("#settings-backdrop");
+    const settingsForm = document.querySelector("#settings-form");
+    const settingsMessage = document.querySelector("#settings-message");
+    let authMode = "login";
+    let currentUsername = "";
+    let busy = false;
+
+    function setMessage(element, text, success = false) {
+      element.textContent = text;
+      element.classList.toggle("success", success);
+    }
+    function setAuthMode(mode) {
+      authMode = mode;
+      const registering = mode === "register";
+      authTitle.textContent = registering ? "Konto erstellen" : "Willkommen zurück";
+      authSubtitle.textContent = registering ? "Erstelle dein persönliches Konto." : "Melde dich an, um fortzufahren.";
+      authSubmit.textContent = registering ? "Registrieren" : "Anmelden";
+      authSwitchText.textContent = registering ? "Schon ein Konto?" : "Noch kein Konto?";
+      authSwitch.textContent = registering ? "Anmelden" : "Registrieren";
+      confirmField.classList.toggle("hidden", !registering);
+      confirmPassword.required = registering;
+      passwordInput.autocomplete = registering ? "new-password" : "current-password";
+      setMessage(authMessage, "");
+    }
+    authSwitch.addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
+
+    function showApp(username) {
+      currentUsername = username || "Benutzer";
+      authView.classList.add("hidden");
+      appView.classList.remove("hidden");
+      document.querySelector("#profile-name").textContent = currentUsername;
+      document.querySelector("#menu-username").textContent = currentUsername;
+      document.querySelector("#profile-avatar").textContent = currentUsername.slice(0, 1).toUpperCase();
+      document.querySelector("#welcome-title").textContent = "Willkommen, " + currentUsername;
+      document.querySelector("#settings-username").value = currentUsername;
+    }
+    async function checkSession() {
+      try {
+        const response = await fetch("api.php?action=me", { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) {
+          authView.classList.remove("hidden");
+          appView.classList.add("hidden");
+          return;
+        }
+        const user = await response.json();
+        showApp(user.username);
+      } catch {
+        authView.classList.remove("hidden");
+        appView.classList.add("hidden");
+      }
+    }
+
+    authForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      if (!/^[a-zA-Z0-9_-]{3,32}$/.test(username)) {
+        setMessage(authMessage, "Der Benutzername muss 3–32 Zeichen lang sein und darf nur Buchstaben, Zahlen, _ und - enthalten.");
+        return;
+      }
+      if (password.length < 6 || password.length > 100) {
+        setMessage(authMessage, "Das Passwort muss zwischen 6 und 100 Zeichen lang sein.");
+        return;
+      }
+      if (authMode === "register" && password !== confirmPassword.value) {
+        setMessage(authMessage, "Die Passwörter stimmen nicht überein.");
+        return;
+      }
+      busy = true;
+      authSubmit.disabled = true;
+      setMessage(authMessage, authMode === "register" ? "Konto wird erstellt …" : "Anmeldung läuft …");
+      try {
+        const response = await fetch("api.php?action=" + (authMode === "register" ? "register" : "login"), {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ username, password })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setMessage(authMessage, result.error || "Das hat leider nicht funktioniert.");
+          return;
+        }
+        authForm.reset();
+        showApp(result.username || username);
+      } catch {
+        setMessage(authMessage, "Server nicht erreichbar. Bitte prüfe api.php und die PHP-Datenbank-Unterstützung.");
+      } finally {
+        busy = false;
+        authSubmit.disabled = false;
+      }
+    });
+
+    document.querySelector("#sidebar-toggle").addEventListener("click", () => {
+      sidebar.classList.toggle("collapsed");
+      mainContent.classList.toggle("expanded", sidebar.classList.contains("collapsed"));
+    });
+    document.querySelector("#mobile-toggle").addEventListener("click", () => sidebar.classList.toggle("mobile-open"));
+    document.querySelectorAll(".nav-item").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+        const page = button.dataset.page;
+        const home = page === "home";
+        document.querySelector("#home-page").classList.toggle("hidden", !home);
+        document.querySelector("#placeholder-page").classList.toggle("hidden", home);
+        document.querySelector("#page-title").textContent = home ? "Startseite" : (page === "files" ? "Dateien" : "Aktivität");
+        document.querySelector("#placeholder-title").textContent = page === "files" ? "Dateien kommen später" : "Aktivität kommt später";
+        if (window.matchMedia("(max-width: 760px)").matches) sidebar.classList.remove("mobile-open");
+      });
+    });
+
+    profileButton.addEventListener("click", () => {
+      const opening = profileMenu.classList.contains("hidden");
+      profileMenu.classList.toggle("hidden", !opening);
+      profileButton.setAttribute("aria-expanded", String(opening));
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".sidebar-bottom")) {
+        profileMenu.classList.add("hidden");
+        profileButton.setAttribute("aria-expanded", "false");
+      }
+    });
+    function openSettings() {
+      profileMenu.classList.add("hidden");
+      profileButton.setAttribute("aria-expanded", "false");
+      document.querySelector("#settings-username").value = currentUsername;
+      document.querySelector("#current-password").value = "";
+      document.querySelector("#new-password").value = "";
+      document.querySelector("#confirm-new-password").value = "";
+      setMessage(settingsMessage, "");
+      settingsBackdrop.classList.remove("hidden");
+      document.querySelector("#current-password").focus();
+    }
+    function closeSettings() { settingsBackdrop.classList.add("hidden"); }
+    document.querySelector("#open-settings").addEventListener("click", openSettings);
+    document.querySelector("#close-settings").addEventListener("click", closeSettings);
+    document.querySelector("#cancel-settings").addEventListener("click", closeSettings);
+    settingsBackdrop.addEventListener("click", (event) => { if (event.target === settingsBackdrop) closeSettings(); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSettings(); });
+
+    function applyTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      document.querySelector("#theme-light").setAttribute("aria-pressed", String(theme === "light"));
+      document.querySelector("#theme-dark").setAttribute("aria-pressed", String(theme === "dark"));
+      try { localStorage.setItem("account-theme", theme); } catch {}
+    }
+    let savedTheme = "light";
+    try { savedTheme = localStorage.getItem("account-theme") || "light"; } catch {}
+    applyTheme(savedTheme === "dark" ? "dark" : "light");
+    document.querySelector("#theme-light").addEventListener("click", () => applyTheme("light"));
+    document.querySelector("#theme-dark").addEventListener("click", () => applyTheme("dark"));
+
+    settingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      const newUsername = document.querySelector("#settings-username").value.trim();
+      const currentPassword = document.querySelector("#current-password").value;
+      const newPassword = document.querySelector("#new-password").value;
+      const confirmNewPassword = document.querySelector("#confirm-new-password").value;
+      if (!/^[a-zA-Z0-9_-]{3,32}$/.test(newUsername)) {
+        setMessage(settingsMessage, "Der Name muss 3–32 Zeichen lang sein und darf nur Buchstaben, Zahlen, _ und - enthalten.");
+        return;
+      }
+      if (!currentPassword) {
+        setMessage(settingsMessage, "Bitte gib dein aktuelles Passwort ein.");
+        return;
+      }
+      if (newPassword && newPassword.length < 6) {
+        setMessage(settingsMessage, "Das neue Passwort muss mindestens 6 Zeichen lang sein.");
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        setMessage(settingsMessage, "Die neuen Passwörter stimmen nicht überein.");
+        return;
+      }
+      busy = true;
+      document.querySelector("#save-settings").disabled = true;
+      setMessage(settingsMessage, "Änderungen werden gespeichert …");
+      try {
+        const response = await fetch("api.php?action=update-profile", {
+          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+          body: JSON.stringify({ username: newUsername, currentPassword, newPassword })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setMessage(settingsMessage, result.error || "Änderungen konnten nicht gespeichert werden.");
+          return;
+        }
+        showApp(result.username || newUsername);
+        document.querySelector("#current-password").value = "";
+        document.querySelector("#new-password").value = "";
+        document.querySelector("#confirm-new-password").value = "";
+        setMessage(settingsMessage, "Einstellungen gespeichert.", true);
+        window.setTimeout(() => closeSettings(), 900);
+      } catch {
+        setMessage(settingsMessage, "Server nicht erreichbar. Bitte versuche es erneut.");
+      } finally {
+        busy = false;
+        document.querySelector("#save-settings").disabled = false;
+      }
+    });
+
+    document.querySelector("#logout-button").addEventListener("click", async () => {
+      try {
+        const response = await fetch("api.php?action=logout", { method: "POST", credentials: "same-origin" });
+        if (response.ok) {
+          profileMenu.classList.add("hidden");
+          appView.classList.add("hidden");
+          authView.classList.remove("hidden");
+          authForm.reset();
+          setAuthMode("login");
+          currentUsername = "";
+        } else {
+          alert("Abmelden fehlgeschlagen. Bitte versuche es erneut.");
+        }
+      } catch { alert("Server nicht erreichbar."); }
+    });
+
+    setAuthMode("login");
+    checkSession();
+  </script>
+</body>
+</html>
