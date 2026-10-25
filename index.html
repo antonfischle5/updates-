@@ -565,7 +565,7 @@
     function closeSettings() { settingsBackdrop.classList.add("hidden"); }
     document.querySelector("#open-settings").addEventListener("click", openSettings);
     document.querySelector("#quick-settings").addEventListener("click", openSettings);
-    document.querySelector("#quick-profile").addEventListener("click", () => profileButton.click());
+    document.querySelector("#quick-profile").addEventListener("click", () => openUserProfile());
     document.querySelector("#close-settings").addEventListener("click", closeSettings);
     document.querySelector("#cancel-settings").addEventListener("click", closeSettings);
     settingsBackdrop.addEventListener("click", (event) => { if (event.target === settingsBackdrop) closeSettings(); });
