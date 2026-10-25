@@ -72,6 +72,7 @@
       <div class="sidebar-bottom">
         <div class="profile-menu hidden" id="profile-menu" role="menu">
           <div class="menu-heading"><strong id="menu-username">Benutzer</strong><small>Dein Konto</small></div>
+          <button class="menu-item" id="open-profile" type="button" role="menuitem">◎ Mein Profil</button>
           <button class="menu-item" id="open-settings" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.6-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.6 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)"/></svg>
             Einstellungen
@@ -113,7 +114,7 @@
               <div class="panel-heading"><div><h2>Schnellzugriff</h2><p>Die wichtigsten Aktionen an einem Ort.</p></div></div>
               <div class="quick-actions">
                 <button class="quick-action" id="quick-settings" type="button"><span class="quick-icon">⚙</span><span><strong>Einstellungen</strong><small>Name, Passwort und Design verwalten</small></span><span class="quick-arrow">↗</span></button>
-                <button class="quick-action" id="quick-profile" type="button"><span class="quick-icon">◎</span><span><strong>Mein Profil</strong><small>Dein Konto und Profilmenü öffnen</small></span><span class="quick-arrow">↗</span></button>
+                <button class="quick-action" id="quick-profile" type="button"><span class="quick-icon">◎</span><span><strong>Mein Profil</strong><small>Profilbild, Bio und Badges ansehen</small></span><span class="quick-arrow">↗</span></button>
               </div>
             </section>
             <section class="panel-card">
@@ -151,6 +152,18 @@
             <section class="leaderboard-panel"><div class="panel-heading"><div><h3>🏆 Clicker Rangliste</h3><p>Die Top 10 erhalten ein Abzeichen auf ihrem Profil.</p></div><button class="leaderboard-icon-button" id="leaderboard-toggle" type="button" aria-label="Rangliste anzeigen" aria-expanded="false">🏆</button></div><div id="leaderboard-wrap" class="hidden"><button class="secondary-button" id="leaderboard-refresh" type="button">Aktualisieren</button><ol id="clicker-leaderboard" class="leaderboard-list"><li>Rangliste wird geladen …</li></ol></div></section>
             <section class="leaderboard-panel"><div class="panel-heading"><div><h3>👤 Spielerprofil</h3><p>Klicke auf einen Namen, um die Abzeichen zu sehen.</p></div></div><div id="public-profile" class="public-profile"><p>Wähle einen Spieler aus der Rangliste.</p></div></section>
           </div>
+        </section>
+
+        <section id="profile-page" class="panel-card hidden">
+          <div class="panel-heading"><div><p class="eyebrow">KONTO</p><h2>👤 Profil</h2><p>Dein Profilbild, deine Bio und deine Abzeichen.</p></div></div>
+          <div id="profile-view" class="profile-view"><p>Profil wird geladen …</p></div>
+          <form id="profile-edit-form" class="profile-edit-form hidden">
+            <label for="profile-avatar-url">Profilbild-URL</label><input id="profile-avatar-url" type="url" placeholder="https://…/bild.jpg" maxlength="1500">
+            <small>Füge einen direkten Link zu einem Bild ein (HTTPS empfohlen).</small>
+            <label for="profile-bio">Bio</label><textarea id="profile-bio" rows="4" maxlength="500" placeholder="Schreib etwas über dich …"></textarea>
+            <small>Maximal 500 Zeichen.</small>
+            <button class="primary-button" type="submit">Profil speichern</button><p id="profile-message" class="form-message" role="status"></p>
+          </form>
         </section>
         <section id="farming-page" class="panel-card hidden">
           <div class="panel-heading"><div><p class="eyebrow">GAMES</p><h2>🌾 Farming</h2><p>Stelle Farmer ein, wähle ihre Felder und sammle Ernten. Wachstum läuft auch weiter, wenn du offline bist.</p></div></div>
@@ -750,9 +763,40 @@
       const list=document.querySelector("#clicker-leaderboard"); if(!list)return;
       try{const r=await fetch("api.php?action=clicker-leaderboard",{credentials:"same-origin",cache:"no-store"});if(!r.ok)throw new Error();const data=await r.json();list.replaceChildren();
         if(!data.users.length){list.innerHTML="<li>Noch keine Spieler.</li>";return;}
-        data.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.className="leaderboard-rank";rank.textContent="#"+u.rank;const name=document.createElement("button");name.type="button";name.className="leaderboard-user";name.textContent=u.username;name.addEventListener("click",()=>loadPublicProfile(u.username));const score=document.createElement("strong");score.textContent=u.score.toLocaleString("de-DE")+" Punkte";const badges=document.createElement("span");badges.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});li.append(rank,name,score,badges);list.append(li);});
+        data.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.className="leaderboard-rank";rank.textContent="#"+u.rank;const name=document.createElement("button");name.type="button";name.className="leaderboard-user";name.textContent=u.username;name.addEventListener("click",()=>openUserProfile(u.username));const score=document.createElement("strong");score.textContent=u.score.toLocaleString("de-DE")+" Punkte";const badges=document.createElement("span");badges.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});li.append(rank,name,score,badges);list.append(li);});
       }catch{list.innerHTML="<li>Rangliste konnte nicht geladen werden.</li>";}
     }
+
+    async function openUserProfile(username) {
+      document.querySelectorAll("[data-page]").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".page-content > section").forEach(s=>s.classList.add("hidden"));
+      document.querySelector("#profile-page").classList.remove("hidden");
+      document.querySelector("#page-title").textContent="Profil";
+      const view=document.querySelector("#profile-view"), form=document.querySelector("#profile-edit-form"), msg=document.querySelector("#profile-message");
+      view.textContent="Profil wird geladen …"; form.classList.add("hidden"); msg.textContent="";
+      try {
+        const r=await fetch("api.php?action=profile-get&username="+encodeURIComponent(username||""),{credentials:"same-origin",cache:"no-store"});
+        const d=await r.json(); if(!r.ok) throw Error(d.error||"Profil konnte nicht geladen werden.");
+        view.replaceChildren();
+        const head=document.createElement("div"); head.className="profile-header";
+        if(d.avatar_url){const img=document.createElement("img");img.className="profile-avatar";img.src=d.avatar_url;img.alt="Profilbild von "+d.username;img.referrerPolicy="no-referrer";img.onerror=()=>{img.remove();};head.append(img);}
+        else {const avatar=document.createElement("div");avatar.className="profile-avatar profile-avatar-placeholder";avatar.textContent=(d.username||"?").slice(0,1).toUpperCase();head.append(avatar);}
+        const name=document.createElement("div");const h=document.createElement("h2");h.textContent=d.username;const rank=document.createElement("p");rank.textContent="Clicker-Rang #"+d.rank+" · "+Number(d.score).toLocaleString("de-DE")+" Punkte";name.append(h,rank);head.append(name);view.append(head);
+        const bio=document.createElement("p");bio.className="profile-bio";bio.textContent=d.bio||"Noch keine Bio hinzugefügt.";view.append(bio);
+        const bh=document.createElement("h3");bh.textContent="Abzeichen";view.append(bh);
+        const badges=document.createElement("div");badges.className="badge-list profile-badges";
+        if(!d.badges.length){badges.textContent="Noch keine Abzeichen";}
+        d.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});view.append(badges);
+        if(d.isOwn){form.classList.remove("hidden");document.querySelector("#profile-avatar-url").value=d.avatar_url||"";document.querySelector("#profile-bio").value=d.bio||"";}
+      } catch(e){view.textContent=e.message||"Profil konnte nicht geladen werden.";}
+    }
+    document.querySelector("#quick-profile").addEventListener("click",()=>openUserProfile());
+    document.querySelector("#open-profile").addEventListener("click",()=>{document.querySelector("#profile-menu").classList.add("hidden");openUserProfile();});
+    document.querySelector("#profile-edit-form").addEventListener("submit",async e=>{
+      e.preventDefault();const msg=document.querySelector("#profile-message");msg.textContent="Speichere …";
+      try{const r=await fetch("api.php?action=profile-save",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({avatar_url:document.querySelector("#profile-avatar-url").value.trim(),bio:document.querySelector("#profile-bio").value})});const d=await r.json();if(!r.ok)throw Error(d.error||"Speichern fehlgeschlagen.");msg.textContent="Profil gespeichert.";openUserProfile();}catch(err){msg.textContent=err.message||"Speichern fehlgeschlagen.";}
+    });
+
     async function loadPublicProfile(username){
       const target=document.querySelector("#public-profile");target.textContent="Profil wird geladen …";
       try{const r=await fetch("api.php?action=user-profile&username="+encodeURIComponent(username),{credentials:"same-origin",cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Fehler");target.replaceChildren();const title=document.createElement("h4");title.textContent=d.username;const score=document.createElement("p");score.textContent="Clicker-Punkte: "+d.score.toLocaleString("de-DE")+" · Rang #"+d.rank;const badges=document.createElement("div");badges.className="badge-list profile-badges";if(!d.badges.length)badges.textContent="Noch keine Abzeichen";d.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});target.append(title,score,badges);}catch(e){target.textContent=e.message||"Profil konnte nicht geladen werden.";}
@@ -767,7 +811,7 @@
     const crops={wheat:{n:"Weizen",i:"🌾",t:30,v:5},carrot:{n:"Karotten",i:"🥕",t:60,v:12},potato:{n:"Kartoffeln",i:"🥔",t:90,v:20},corn:{n:"Mais",i:"🌽",t:180,v:45}};
     async function farmApi(a,b){const r=await fetch("api.php?action="+a,{method:b?"POST":"GET",credentials:"same-origin",headers:b?{"Content-Type":"application/json"}:{},body:b?JSON.stringify(b):undefined,cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Fehler");return d;}
     async function renderFarm(){try{const d=await farmApi("farming-state");document.querySelector("#farm-coins").textContent=d.coins;document.querySelector("#farm-workers").textContent=d.workers.length;document.querySelector("#farm-ready").textContent=d.workers.filter(w=>w.ready).length;const cs=document.querySelector("#farm-crops");cs.replaceChildren();Object.entries(crops).forEach(([k,v])=>{const x=document.createElement("div");x.className="farm-crop";x.textContent=v.i+" "+v.n+" · "+v.v+" Münzen · "+v.t+" Sek.";cs.append(x);});const fs=document.querySelector("#farm-fields");fs.replaceChildren();if(!d.workers.length){fs.textContent="Stelle deinen ersten Farmer ein.";return;}d.workers.forEach(w=>{const x=document.createElement("div");x.className="farm-worker";const title=document.createElement("strong");title.textContent="👩‍🌾 Farmer #"+w.id;const sel=document.createElement("select");sel.className="admin-input";Object.entries(crops).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v.i+" "+v.n+" · "+v.v+" Münzen · "+v.t+" Sek.";o.selected=k===w.crop_key;sel.append(o);});sel.disabled=!!Number(w.claimed);sel.onchange=async()=>{try{await farmApi("farming-plant",{workerId:+w.id,crop:sel.value});renderFarm();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};const remain=Math.max(0,+w.started_at + +w.duration-Math.floor(Date.now()/1000));const st=document.createElement("p");st.textContent=Number(w.claimed)?"Ernte eingesammelt":remain?("Noch "+remain+" Sekunden"):"Bereit zum Ernten";const btn=document.createElement("button");btn.className="secondary-button";btn.type="button";btn.textContent="Ernten · "+w.reward+" Münzen";btn.disabled=!w.ready||!!Number(w.claimed);btn.onclick=async()=>{try{await farmApi("farming-collect",{workerId:+w.id});await renderFarm();loadFarmBoard();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};x.append(title,sel,st,btn);fs.append(x);});}catch(e){document.querySelector("#farm-fields").textContent=e.message;}}
-    async function loadFarmBoard(){const list=document.querySelector("#farm-leaderboard");try{const d=await farmApi("farming-leaderboard");list.replaceChildren();d.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.textContent="#"+u.rank;const name=document.createElement("strong");name.textContent=u.username;const score=document.createElement("strong");score.textContent=u.score+" Münzen verdient";const bs=document.createElement("span");bs.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;bs.append(tag);});li.append(rank,name,score,bs);list.append(li);});}catch{list.innerHTML="<li>Rangliste konnte nicht geladen werden.</li>";}}
+    async function loadFarmBoard(){const list=document.querySelector("#farm-leaderboard");try{const d=await farmApi("farming-leaderboard");list.replaceChildren();d.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.textContent="#"+u.rank;const name=document.createElement("strong");name.textContent=u.username;name.type="button";name.className="leaderboard-user";name.addEventListener("click",()=>openUserProfile(u.username));const score=document.createElement("strong");score.textContent=u.score+" Münzen verdient";const bs=document.createElement("span");bs.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;bs.append(tag);});li.append(rank,name,score,bs);list.append(li);});}catch{list.innerHTML="<li>Rangliste konnte nicht geladen werden.</li>";}}
     document.querySelector("#farm-hire").onclick=async()=>{try{await farmApi("farming-hire",{});document.querySelector("#farm-message").textContent="Farmer eingestellt!";renderFarm();}catch(e){document.querySelector("#farm-message").textContent=e.message;}};
     document.querySelector("#leaderboard-toggle").onclick=()=>{const w=document.querySelector("#leaderboard-wrap"),b=document.querySelector("#leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadLeaderboard();};
     document.querySelector("#farm-leaderboard-toggle").onclick=()=>{const w=document.querySelector("#farm-leaderboard-wrap"),b=document.querySelector("#farm-leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadFarmBoard();};
