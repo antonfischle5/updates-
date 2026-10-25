@@ -144,9 +144,13 @@
               <button id="user-ipban" class="primary-button" type="button">IP bannen</button>
               <button id="user-ipunban" class="secondary-button" type="button">IP-Bann aufheben</button>
             </div>
+            <div class="admin-actions user-admin-actions">
+              <button id="user-make-admin" class="primary-button" type="button">Zum Admin machen</button>
+              <button id="user-remove-admin" class="secondary-button" type="button">Adminrechte entziehen</button>
+            </div>
             <p id="user-admin-message" class="form-message" role="status"></p>
           </div>
-          <div class="panel-card admin-panel"><div class="panel-heading"><div><h2>Hinweis</h2><p>Die Administratorrechte sind aktuell für den Benutzernamen <strong>Antonfischle</strong> vorgesehen. Weitere Admins werden später in der Serverkonfiguration ergänzt. IP-Banns verwenden die vom Server erkannte IP-Adresse; bei gemeinsam genutzten Netzwerken können dadurch mehrere Personen betroffen sein.</p></div></div></div>
+          <div class="panel-card admin-panel"><div class="panel-heading"><div><h2>Hinweis</h2><p>Administratoren können gesperrte Module weiterhin nutzen und hier weitere Benutzer zu Administratoren machen. IP-Banns verwenden die vom Server erkannte IP-Adresse; bei gemeinsam genutzten Netzwerken können dadurch mehrere Personen betroffen sein.</p></div></div></div>
         </section>
       </div>
     </main>
@@ -264,7 +268,7 @@
     }
     function updateSelectedUserStatus() {
       const user = selectedAdminUser();
-      manageUserStatus.textContent = user ? (user.banned ? "Kontostatus: Gesperrt" : "Kontostatus: Aktiv") : "";
+      manageUserStatus.textContent = user ? ((user.banned ? "Kontostatus: Gesperrt" : "Kontostatus: Aktiv") + (user.isAdmin ? " · Administrator" : " · Normaler Nutzer")) : "";
     }
     async function loadAdminUsers() {
       const response = await fetch("api.php?action=admin-users", { credentials: "same-origin", cache: "no-store" });
@@ -277,7 +281,7 @@
       adminUsers.forEach(user => {
         const name = user.username;
         const option = document.createElement("option");
-        option.value = name; option.textContent = name + (user.banned ? " (gesperrt)" : "");
+        option.value = name; option.textContent = name + (user.isAdmin ? " (Admin)" : "") + (user.banned ? " (gesperrt)" : "");
         manageUser.append(option);
         if (name.toLowerCase() !== currentUsername.toLowerCase()) {
           const permissionOption = document.createElement("option");
@@ -294,8 +298,8 @@
     async function performUserAction(operation) {
       const username = manageUser.value;
       if (!username) { setUserAdminMessage("Bitte wähle einen Benutzer aus."); return; }
-      const labels = {ban:"Nutzerbann",unban:"Nutzerbann",ipban:"IP-Bann",ipunban:"IP-Bann"};
-      const actionText = {ban:"sperren",unban:"entsperren",ipban:"per IP sperren",ipunban:"IP-Bann aufheben"};
+      const labels = {ban:"Nutzerbann",unban:"Nutzerbann",ipban:"IP-Bann",ipunban:"IP-Bann", "make-admin":"Adminrechte", "remove-admin":"Adminrechte"};
+      const actionText = {ban:"sperren",unban:"entsperren",ipban:"per IP sperren",ipunban:"IP-Bann aufheben", "make-admin":"zum Administrator machen", "remove-admin":"die Administratorrechte entziehen"};
       if (!window.confirm("Soll der Benutzer " + username + " wirklich " + actionText[operation] + " werden?")) return;
       try {
         const response = await fetch("api.php?action=admin-user-action", {
@@ -314,6 +318,8 @@
     document.querySelector("#user-unban").addEventListener("click", () => performUserAction("unban"));
     document.querySelector("#user-ipban").addEventListener("click", () => performUserAction("ipban"));
     document.querySelector("#user-ipunban").addEventListener("click", () => performUserAction("ipunban"));
+    document.querySelector("#user-make-admin").addEventListener("click", () => performUserAction("make-admin"));
+    document.querySelector("#user-remove-admin").addEventListener("click", () => performUserAction("remove-admin"));
     function setAdminMessage(message, success = false) {
       adminMessage.textContent = message;
       adminMessage.classList.toggle("success", success);
