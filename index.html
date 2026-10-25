@@ -530,6 +530,8 @@
         document.querySelector("#farming-page").classList.toggle("hidden", !farming);
         if (files && document.querySelector('[data-page="files"]').classList.contains("hidden")) return;
         document.querySelector("#files-page").classList.toggle("hidden", !files);
+        // Beim Wechsel zu einer normalen Navigationsseite das Profil wieder ausblenden.
+        document.querySelector("#profile-page").classList.add("hidden");
         document.querySelector("#home-page").classList.toggle("hidden", !home);
         document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files || clicker || farming);
         adminPage.classList.toggle("hidden", !admin);
