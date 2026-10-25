@@ -138,16 +138,20 @@
           <section id="file-preview" class="file-preview hidden"><div class="files-list-heading"><h3 id="file-preview-title">Vorschau</h3><button class="secondary-button" id="file-preview-close" type="button">Schließen</button></div><div id="file-preview-content"></div></section>
         </section>
         <section id="clicker-page" class="panel-card hidden">
-          <div class="panel-heading"><div><p class="eyebrow">GAMES</p><h2>Klicker</h2><p>Klicke auf den Button und sammle Punkte. Dein Spielstand bleibt in diesem Browser gespeichert.</p></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">GAMES</p><h2>Klicker</h2><p>Klicke auf den Button und sammle Punkte. Dein Spielstand wird mit deinem Konto gespeichert und bleibt auch auf anderen Geräten erhalten.</p></div></div>
           <div class="clicker-game">
             <div class="clicker-score-label">Deine Punkte</div>
             <strong class="clicker-score" id="clicker-score">0</strong>
             <button class="clicker-button" id="clicker-button" type="button" aria-label="Punkt sammeln">+1</button>
             <p id="clicker-message" class="clicker-message">Los geht’s! Jeder Klick bringt dir einen Punkt.</p>
-            <div class="clicker-upgrade">
-              <div><strong>Stärker klicken</strong><p>Erhöht die Punkte pro Klick um 1.</p><small id="clicker-power">Aktuelle Stärke: +1</small></div>
-              <button class="secondary-button" id="clicker-upgrade" type="button">Upgrade · 25 Punkte</button>
+            <div class="clicker-upgrades">
+              <div class="clicker-upgrade"><div><strong>Stärker klicken</strong><p>Mehr Punkte pro Klick.</p><small id="clicker-power">Aktuelle Stärke: +1</small></div><button class="secondary-button" id="clicker-upgrade" type="button">Upgrade · 25 Punkte</button></div>
+              <div class="clicker-upgrade"><div><strong>Automatischer Klicker</strong><p>Verdient extra Punkte bei jedem Klick.</p><small id="clicker-auto">Bonus: +0 pro Klick</small></div><button class="secondary-button" id="clicker-auto-upgrade" type="button">Upgrade · 100 Punkte</button></div>
+              <div class="clicker-upgrade"><div><strong>Goldener Klick</strong><p>Verdoppelt deine Punkte pro Klick.</p><small id="clicker-multiplier">Multiplikator: x1</small></div><button class="secondary-button" id="clicker-multiplier-upgrade" type="button">Upgrade · 250 Punkte</button></div>
+              <div class="clicker-upgrade"><div><strong>Super-Klick</strong><p>Großer dauerhafter Bonus pro Klick.</p><small id="clicker-super">Bonus: +0</small></div><button class="secondary-button" id="clicker-super-upgrade" type="button">Upgrade · 1000 Punkte</button></div>
             </div>
+            <section class="leaderboard-panel"><div class="panel-heading"><div><h3>🏆 Clicker Rangliste</h3><p>Die Top 10 erhalten ein Abzeichen auf ihrem Profil.</p></div><button class="secondary-button" id="leaderboard-refresh" type="button">Aktualisieren</button></div><ol id="clicker-leaderboard" class="leaderboard-list"><li>Rangliste wird geladen …</li></ol></section>
+            <section class="leaderboard-panel"><div class="panel-heading"><div><h3>👤 Spielerprofil</h3><p>Klicke auf einen Namen, um die Abzeichen zu sehen.</p></div></div><div id="public-profile" class="public-profile"><p>Wähle einen Spieler aus der Rangliste.</p></div></section>
           </div>
         </section>
         <section id="placeholder-page" class="welcome-card hidden">
@@ -265,6 +269,8 @@
     let clickerScore = 0;
     let clickerPower = 1;
     let clickerUpgradeCost = 25;
+    let clickerAuto = 0, clickerAutoCost = 100, clickerMultiplier = 1, clickerMultiplierCost = 250, clickerSuper = 0, clickerSuperCost = 1000;
+    let clickerSaveTimer = null;
 
     function setMessage(element, text, success = false) {
       element.textContent = text;
@@ -712,32 +718,40 @@
       gamesSubmenu.classList.toggle("hidden", !opening);
       gamesToggle.setAttribute("aria-expanded", String(opening));
     });
-    function renderClicker() {
-      document.querySelector("#clicker-score").textContent = String(clickerScore);
-      document.querySelector("#clicker-power").textContent = "Aktuelle Stärke: +" + clickerPower;
-      const upgradeButton = document.querySelector("#clicker-upgrade");
-      upgradeButton.textContent = "Upgrade · " + clickerUpgradeCost + " Punkte";
-      upgradeButton.disabled = clickerScore < clickerUpgradeCost;
-      try { localStorage.setItem("mini-clicker-save", JSON.stringify({ score: clickerScore, power: clickerPower, cost: clickerUpgradeCost })); } catch {}
+    function clickerState() { return { score:clickerScore,power:clickerPower,cost:clickerUpgradeCost,auto:clickerAuto,autoCost:clickerAutoCost,multiplier:clickerMultiplier,multiplierCost:clickerMultiplierCost,super:clickerSuper,superCost:clickerSuperCost }; }
+    async function saveClicker() {
+      try { const r=await fetch("api.php?action=clicker-save",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(clickerState())}); if(!r.ok) throw new Error(); document.querySelector("#clicker-message").textContent="Spielstand im Konto gespeichert."; }
+      catch { document.querySelector("#clicker-message").textContent="Speichern fehlgeschlagen. Bitte später erneut versuchen."; }
+      loadLeaderboard();
     }
-    try {
-      const savedClicker = JSON.parse(localStorage.getItem("mini-clicker-save") || "null");
-      if (savedClicker && Number.isSafeInteger(savedClicker.score) && savedClicker.score >= 0 && Number.isSafeInteger(savedClicker.power) && savedClicker.power >= 1 && Number.isSafeInteger(savedClicker.cost) && savedClicker.cost >= 25) {
-        clickerScore = savedClicker.score; clickerPower = savedClicker.power; clickerUpgradeCost = savedClicker.cost;
-      }
-    } catch {}
-    document.querySelector("#clicker-button").addEventListener("click", () => {
-      clickerScore += clickerPower;
-      document.querySelector("#clicker-message").textContent = "+" + clickerPower + " Punkte gesammelt!";
-      renderClicker();
-    });
-    document.querySelector("#clicker-upgrade").addEventListener("click", () => {
-      if (clickerScore < clickerUpgradeCost) return;
-      clickerScore -= clickerUpgradeCost; clickerPower += 1; clickerUpgradeCost = Math.ceil(clickerUpgradeCost * 1.7);
-      document.querySelector("#clicker-message").textContent = "Upgrade gekauft! Jeder Klick bringt jetzt +" + clickerPower + " Punkte.";
-      renderClicker();
-    });
-    renderClicker();
+    function scheduleClickerSave(){ clearTimeout(clickerSaveTimer); clickerSaveTimer=setTimeout(saveClicker,350); }
+    function renderClicker(){
+      document.querySelector("#clicker-score").textContent=clickerScore.toLocaleString("de-DE");
+      document.querySelector("#clicker-power").textContent="Aktuelle Stärke: +"+clickerPower;
+      document.querySelector("#clicker-auto").textContent="Bonus: +"+clickerAuto+" pro Klick";
+      document.querySelector("#clicker-multiplier").textContent="Multiplikator: x"+clickerMultiplier;
+      document.querySelector("#clicker-super").textContent="Bonus: +"+clickerSuper;
+      [["clicker-upgrade",clickerUpgradeCost],["clicker-auto-upgrade",clickerAutoCost],["clicker-multiplier-upgrade",clickerMultiplierCost],["clicker-super-upgrade",clickerSuperCost]].forEach(([id,cost])=>{const b=document.querySelector("#"+id);b.textContent="Upgrade · "+cost.toLocaleString("de-DE")+" Punkte";b.disabled=clickerScore<cost;});
+    }
+    async function loadClicker(){try{const r=await fetch("api.php?action=clicker-state",{credentials:"same-origin",cache:"no-store"});if(!r.ok)return;const s=await r.json();clickerScore=s.score;clickerPower=s.power;clickerUpgradeCost=s.cost;clickerAuto=s.auto;clickerAutoCost=s.autoCost;clickerMultiplier=s.multiplier;clickerMultiplierCost=s.multiplierCost;clickerSuper=s.super;clickerSuperCost=s.superCost;renderClicker();loadLeaderboard();}catch{}}
+    async function loadLeaderboard(){
+      const list=document.querySelector("#clicker-leaderboard"); if(!list)return;
+      try{const r=await fetch("api.php?action=clicker-leaderboard",{credentials:"same-origin",cache:"no-store"});if(!r.ok)throw new Error();const data=await r.json();list.replaceChildren();
+        if(!data.users.length){list.innerHTML="<li>Noch keine Spieler.</li>";return;}
+        data.users.forEach(u=>{const li=document.createElement("li");li.className="leaderboard-row";const rank=document.createElement("span");rank.className="leaderboard-rank";rank.textContent="#"+u.rank;const name=document.createElement("button");name.type="button";name.className="leaderboard-user";name.textContent=u.username;name.addEventListener("click",()=>loadPublicProfile(u.username));const score=document.createElement("strong");score.textContent=u.score.toLocaleString("de-DE")+" Punkte";const badges=document.createElement("span");badges.className="badge-list";u.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});li.append(rank,name,score,badges);list.append(li);});
+      }catch{list.innerHTML="<li>Rangliste konnte nicht geladen werden.</li>";}
+    }
+    async function loadPublicProfile(username){
+      const target=document.querySelector("#public-profile");target.textContent="Profil wird geladen …";
+      try{const r=await fetch("api.php?action=user-profile&username="+encodeURIComponent(username),{credentials:"same-origin",cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error||"Fehler");target.replaceChildren();const title=document.createElement("h4");title.textContent=d.username;const score=document.createElement("p");score.textContent="Clicker-Punkte: "+d.score.toLocaleString("de-DE")+" · Rang #"+d.rank;const badges=document.createElement("div");badges.className="badge-list profile-badges";if(!d.badges.length)badges.textContent="Noch keine Abzeichen";d.badges.forEach(b=>{const tag=document.createElement("span");tag.className="user-badge";tag.textContent=b.icon+" "+b.label;badges.append(tag);});target.append(title,score,badges);}catch(e){target.textContent=e.message||"Profil konnte nicht geladen werden.";}
+    }
+    document.querySelector("#clicker-button").addEventListener("click",()=>{const gained=(clickerPower+clickerAuto+clickerSuper)*clickerMultiplier;clickerScore+=gained;document.querySelector("#clicker-message").textContent="+"+gained+" Punkte gesammelt!";renderClicker();scheduleClickerSave();});
+    document.querySelector("#clicker-upgrade").addEventListener("click",()=>{if(clickerScore<clickerUpgradeCost)return;clickerScore-=clickerUpgradeCost;clickerPower++;clickerUpgradeCost=Math.ceil(clickerUpgradeCost*1.7);renderClicker();scheduleClickerSave();});
+    document.querySelector("#clicker-auto-upgrade").addEventListener("click",()=>{if(clickerScore<clickerAutoCost)return;clickerScore-=clickerAutoCost;clickerAuto++;clickerAutoCost=Math.ceil(clickerAutoCost*1.8);renderClicker();scheduleClickerSave();});
+    document.querySelector("#clicker-multiplier-upgrade").addEventListener("click",()=>{if(clickerScore<clickerMultiplierCost)return;clickerScore-=clickerMultiplierCost;clickerMultiplier*=2;clickerMultiplierCost=Math.ceil(clickerMultiplierCost*2.5);renderClicker();scheduleClickerSave();});
+    document.querySelector("#clicker-super-upgrade").addEventListener("click",()=>{if(clickerScore<clickerSuperCost)return;clickerScore-=clickerSuperCost;clickerSuper+=10;clickerSuperCost=Math.ceil(clickerSuperCost*2.2);renderClicker();scheduleClickerSave();});
+    document.querySelector("#leaderboard-refresh").addEventListener("click",loadLeaderboard);
+    renderClicker(); loadClicker();
 
     setAuthMode("login");
     checkSession();
