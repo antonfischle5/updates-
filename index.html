@@ -172,7 +172,7 @@
             <select id="permission-scope" class="admin-input"><option value="all">Alle Benutzer</option><option value="user">Ein bestimmter Benutzer</option></select>
             <div id="permission-user-wrap" class="hidden"><label class="admin-label" for="permission-user">Benutzer auswählen</label><select id="permission-user" class="admin-input"></select></div>
             <label class="admin-label" for="permission-module">Modul</label>
-            <select id="permission-module" class="admin-input"><option value="activity">Aktivität</option></select>
+            <select id="permission-module" class="admin-input"><option value="activity">Aktivität</option><option value="clicker">Klicker-Spiel</option><option value="farming">Farming-Spiel</option></select>
             <div class="admin-actions"><button id="permission-lock" class="primary-button" type="button">Zugriff sperren</button><button id="permission-unlock" class="secondary-button" type="button">Zugriff erlauben</button></div>
             <p id="admin-message" class="form-message" role="status"></p>
           </div>
@@ -415,6 +415,9 @@
         const adminInfo = await adminResponse.json();
         document.querySelector('[data-page="files"]').classList.toggle("hidden", !(adminResponse.ok && adminInfo.isAdmin === true));
         document.querySelector('[data-page="activity"]').classList.toggle("hidden", result.access?.activity === false);
+        document.querySelector('[data-page="clicker"]').classList.toggle("hidden", result.access?.clicker === false);
+        document.querySelector('[data-page="farming"]').classList.toggle("hidden", result.access?.farming === false);
+        document.querySelector("#games-nav-group").classList.toggle("hidden", result.access?.clicker === false && result.access?.farming === false);
       } catch {}
     }
 
@@ -509,6 +512,7 @@
         const files = page === "files";
         const clicker = page === "clicker";
         const farming = page === "farming";
+        if ((clicker && document.querySelector('[data-page="clicker"]').classList.contains("hidden")) || (farming && document.querySelector('[data-page="farming"]').classList.contains("hidden"))) page = "home";
         document.querySelector("#clicker-page").classList.toggle("hidden", !clicker);
         document.querySelector("#farming-page").classList.toggle("hidden", !farming);
         if (files && document.querySelector('[data-page="files"]').classList.contains("hidden")) return;
