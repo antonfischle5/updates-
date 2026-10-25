@@ -194,3 +194,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .user-admin-actions { margin-top: 10px; }
 .user-admin-actions .primary-button { background: var(--danger); border-color: var(--danger); }
 .user-admin-actions .secondary-button { border-color: var(--border); background: var(--surface-soft); color: var(--text); }
+
+/* Games sidebar and clicker mini-game */
+.nav-group { width: 100%; }
+.nav-group-toggle { width: 100%; }
+.nav-group-chevron { margin-left: auto; font-size: 12px; transition: transform .18s ease; }
+.nav-group-toggle[aria-expanded="true"] .nav-group-chevron { transform: rotate(180deg); }
+.nav-submenu { display: grid; gap: 4px; padding: 4px 0 6px 14px; }
+.nav-subitem { min-height: 38px; }
+.nav-sub-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--muted); margin: 0 5px; }
+.sidebar.collapsed .nav-group-chevron, .sidebar.collapsed .nav-submenu { display: none; }
+.clicker-game { display: grid; justify-items: center; gap: 16px; padding: 28px 12px 10px; text-align: center; }
+.clicker-score-label { color: var(--muted); font-size: 14px; }
+.clicker-score { font-size: clamp(42px, 8vw, 72px); line-height: 1; letter-spacing: -2px; }
+.clicker-button { width: 150px; height: 150px; border: 0; border-radius: 50%; color: white; background: linear-gradient(145deg, var(--accent), #7c5cff); font-size: 32px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 0 rgba(0,0,0,.12), 0 16px 35px rgba(80,70,200,.24); transition: transform .08s ease, box-shadow .08s ease; }
+.clicker-button:active { transform: translateY(6px) scale(.98); box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+.clicker-message { min-height: 20px; color: var(--muted); }
+.clicker-upgrade { display: flex; align-items: center; justify-content: space-between; gap: 18px; width: min(100%, 520px); padding: 16px; border: 1px solid var(--border); border-radius: 14px; text-align: left; }
+.clicker-upgrade p, .clicker-upgrade small { display: block; margin: 5px 0 0; color: var(--muted); }
+@media (max-width: 600px) { .clicker-upgrade { flex-direction: column; align-items: stretch; } }
