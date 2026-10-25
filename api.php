@@ -337,18 +337,23 @@ if ($action === 'update-profile') {
 
 
 if ($action === 'farming-state') {
+    if (!moduleAllowed($db, 'farming')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
  requireLogin();$uid=(int)$_SESSION['user_id'];$db->prepare('INSERT OR IGNORE INTO farming_state(user_id) VALUES(?)')->execute([$uid]);$s=$db->prepare('SELECT coins,total_earned FROM farming_state WHERE user_id=?');$s->execute([$uid]);$w=$db->prepare('SELECT id,crop_key,started_at,duration,reward,claimed FROM farming_workers WHERE user_id=? ORDER BY id');$w->execute([$uid]);$workers=[];foreach($w->fetchAll() as $x){$x['ready']=!(int)$x['claimed']&&time()>=(int)$x['started_at']+(int)$x['duration'];$workers[]=$x;} $x=$s->fetch();respond(200,['coins'=>(int)$x['coins'],'totalEarned'=>(int)$x['total_earned'],'workers'=>$workers]);
 }
 if ($action === 'farming-hire') {
+    if (!moduleAllowed($db, 'farming')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
  requireLogin();$uid=(int)$_SESSION['user_id'];$db->beginTransaction();$db->prepare('INSERT OR IGNORE INTO farming_state(user_id) VALUES(?)')->execute([$uid]);$s=$db->prepare('SELECT coins FROM farming_state WHERE user_id=?');$s->execute([$uid]);if((int)$s->fetchColumn()<50){$db->rollBack();respond(400,['error'=>'Du brauchst 50 Münzen.']);}$q=$db->prepare('SELECT COUNT(*) FROM farming_workers WHERE user_id=?');$q->execute([$uid]);if((int)$q->fetchColumn()>=50){$db->rollBack();respond(400,['error'=>'Maximal 50 Farmer.']);}$db->prepare('UPDATE farming_state SET coins=coins-50 WHERE user_id=?')->execute([$uid]);$db->prepare("INSERT INTO farming_workers(user_id,crop_key,started_at,duration,reward) VALUES(?,'wheat',?,30,5)")->execute([$uid,time()]);$db->commit();respond(200,['hired'=>true]);
 }
 if ($action === 'farming-plant') {
+    if (!moduleAllowed($db, 'farming')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
  requireLogin();$b=json_decode(file_get_contents('php://input')?:'',true);$c=['wheat'=>[30,5],'carrot'=>[60,12],'potato'=>[90,20],'corn'=>[180,45]];$id=(int)($b['workerId']??0);$key=(string)($b['crop']??'');if(!isset($c[$key]))respond(400,['error'=>'Ungültige Pflanze.']);$uid=(int)$_SESSION['user_id'];$q=$db->prepare('SELECT claimed FROM farming_workers WHERE id=? AND user_id=?');$q->execute([$id,$uid]);$x=$q->fetch();if(!$x||$x['claimed'])respond(404,['error'=>'Farmer nicht gefunden.']);$db->prepare('UPDATE farming_workers SET crop_key=?,started_at=?,duration=?,reward=? WHERE id=? AND user_id=?')->execute([$key,time(),$c[$key][0],$c[$key][1],$id,$uid]);respond(200,['planted'=>true]);
 }
 if ($action === 'farming-collect') {
+    if (!moduleAllowed($db, 'farming')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
  requireLogin();$b=json_decode(file_get_contents('php://input')?:'',true);$id=(int)($b['workerId']??0);$uid=(int)$_SESSION['user_id'];$db->beginTransaction();$q=$db->prepare('SELECT started_at,duration,reward,claimed FROM farming_workers WHERE id=? AND user_id=?');$q->execute([$id,$uid]);$x=$q->fetch();if(!$x||$x['claimed']||time()<(int)$x['started_at']+(int)$x['duration']){$db->rollBack();respond(400,['error'=>'Ernte noch nicht bereit.']);}$db->prepare('UPDATE farming_workers SET claimed=1 WHERE id=?')->execute([$id]);$db->prepare('UPDATE farming_state SET coins=coins+?,total_earned=total_earned+? WHERE user_id=?')->execute([(int)$x['reward'],(int)$x['reward'],$uid]);$db->commit();respond(200,['collected'=>true]);
 }
 if ($action === 'farming-leaderboard') {
+    if (!moduleAllowed($db, 'farming')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
  requireLogin();$rows=$db->query('SELECT u.id,u.username,u.created_at,u.is_admin,COALESCE(f.total_earned,0) score FROM users u LEFT JOIN farming_state f ON f.user_id=u.id ORDER BY score DESC,u.username COLLATE NOCASE LIMIT 10')->fetchAll();$out=[];foreach($rows as $i=>$r){$b=[];if((int)$r['is_admin']===1||strtolower($r['username'])==='antonfischle')$b[]=['icon'=>'🛡️','label'=>'Admin'];if(strtotime($r['created_at'])<=time()-31536000)$b[]=['icon'=>'🎂','label'=>'1 Jahr Mitglied'];if((int)$r['score']>0&&$i<10)$b[]=['icon'=>'🏆','label'=>'Farming Top 10'];if((int)$r['score']>0&&$i===0)$b[]=['icon'=>'👑','label'=>'Farming Top 1'];$q=$db->prepare('SELECT badge_key FROM user_badges WHERE user_id=?');$q->execute([(int)$r['id']]);foreach($q->fetchAll(PDO::FETCH_COLUMN) as $k){if($k==='supporter')$b[]=['icon'=>'💚','label'=>'Supporter'];if($k==='vip')$b[]=['icon'=>'💎','label'=>'VIP'];}$out[]=['username'=>$r['username'],'score'=>(int)$r['score'],'rank'=>$i+1,'badges'=>$b];}respond(200,['users'=>$out]);
 }
 if ($action === 'clicker-state') {
@@ -362,6 +367,7 @@ if ($action === 'clicker-state') {
     respond(200, ['score'=>(int)$s['score'],'power'=>(int)$s['power'],'cost'=>(int)$s['upgrade_cost'],'auto'=>(int)$s['auto_clicks'],'autoCost'=>(int)$s['auto_cost'],'multiplier'=>(int)$s['multiplier'],'multiplierCost'=>(int)$s['multiplier_cost'],'super'=>(int)$s['super_bonus'],'superCost'=>(int)$s['super_cost'],'rank'=>(int)$rankStmt->fetchColumn()]);
 }
 if ($action === 'clicker-save') {
+    if (!moduleAllowed($db, 'clicker')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
     if ($method !== 'POST') { header('Allow: POST'); respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']); }
     requireLogin();
     $body = json_decode(file_get_contents('php://input') ?: '', true);
@@ -375,6 +381,7 @@ if ($action === 'clicker-save') {
     respond(200, ['saved'=>true]);
 }
 if ($action === 'clicker-leaderboard') {
+    if (!moduleAllowed($db, 'clicker')) respond(403, ['error' => 'Dieses Spiel wurde vom Administrator gesperrt.']);
     if ($method !== 'GET') respond(405, ['error'=>'Diese Anfrage ist nicht erlaubt.']); requireLogin();
     $rows=$db->query('SELECT u.id,u.username,u.created_at,u.is_admin,COALESCE(c.score,0) score FROM users u LEFT JOIN clicker_scores c ON c.user_id=u.id ORDER BY score DESC,u.username COLLATE NOCASE ASC LIMIT 10')->fetchAll();
     $users=[];
@@ -481,7 +488,7 @@ if ($action === 'admin-permissions') {
     $username = is_string($body['username'] ?? null) ? trim($body['username']) : '';
     $module = (string)($body['module'] ?? '');
     $allowed = ($body['allowed'] ?? null) === true ? 1 : 0;
-    if (!in_array($module, ['activity'], true)) respond(400, ['error' => 'Das Dateien-Modul ist dauerhaft Administratoren vorbehalten.']);
+    if (!in_array($module, ['activity', 'clicker', 'farming'], true)) respond(400, ['error' => 'Dieses Modul kann nicht verwaltet werden.']);
     if (!in_array($scope, ['all', 'user'], true)) respond(400, ['error' => 'Ungültiger Geltungsbereich.']);
     if ($scope === 'user' && !preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) respond(400, ['error' => 'Bitte wähle einen gültigen Benutzer.']);
     try {
@@ -610,10 +617,10 @@ if ($action === 'module-access') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireLogin();
     $usernameKey = strtolower((string)($_SESSION['username'] ?? ''));
-    if (isAdmin()) respond(200, ['access' => ['files' => true, 'activity' => true]]);
+    if (isAdmin()) respond(200, ['access' => ['files' => true, 'activity' => true, 'clicker' => true, 'farming' => true]]);
     $stmt = $db->prepare("SELECT module, allowed FROM module_permissions WHERE username_key IN ('*', ?) ORDER BY username_key");
     $stmt->execute([$usernameKey]);
-    $access = ['files' => false, 'activity' => true];
+    $access = ['files' => false, 'activity' => true, 'clicker' => true, 'farming' => true];
     foreach ($stmt->fetchAll() as $row) {
         $access[(string)$row['module']] = (int)$row['allowed'] === 1;
     }
