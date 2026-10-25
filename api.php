@@ -174,6 +174,9 @@ if ($action === 'register' || $action === 'login') {
     if (!preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) {
         respond(400, ['error' => 'Benutzername: 3–32 Zeichen, nur Buchstaben, Zahlen, _ und -.']);
     }
+    if ($action === 'register' && strtolower($username) === 'antonfischle') {
+        respond(403, ['error' => 'Dieser Benutzername ist reserviert.']);
+    }
     if (strlen($password) < 6 || strlen($password) > 100) {
         respond(400, ['error' => 'Das Passwort muss zwischen 6 und 100 Zeichen lang sein.']);
     }
@@ -272,6 +275,9 @@ if ($action === 'update-profile') {
     if ($newUsername !== null) {
         if (!preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $newUsername)) {
             respond(400, ['error' => 'Der Name muss 3–32 Zeichen lang sein und darf nur Buchstaben, Zahlen, _ und - enthalten.']);
+        }
+        if (strtolower($newUsername) === 'antonfischle' && !isAdmin()) {
+            respond(403, ['error' => 'Dieser Benutzername ist reserviert.']);
         }
         try {
             $stmt = $db->prepare('UPDATE users SET username = ?, username_key = ? WHERE id = ?');
