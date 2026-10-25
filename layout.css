@@ -171,3 +171,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .coming-soon { padding: 4px 7px; border-radius: 6px; background: var(--surface-soft); color: var(--muted); font-size: 10px; white-space: nowrap; }
 @media (max-width: 1050px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-lower { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .dashboard-heading { align-items: flex-start; flex-direction: column; } .stats-grid { gap: 10px; } .stat-card { padding: 14px; } .panel-card { padding: 16px; } .stat-note { font-size: 10px; } }
+
+
+/* Admin controls */
+.admin-page { display: grid; gap: 18px; }
+.admin-panel { max-width: 760px; }
+.admin-label { display: block; margin: 15px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.admin-input { display: block; width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--bg); font: inherit; }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.admin-actions button { min-height: 40px; padding: 10px 15px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.admin-actions .primary-button { border: 1px solid var(--danger); background: var(--danger); color: white; }
+.admin-actions .secondary-button { border: 1px solid var(--border); background: var(--surface-soft); color: var(--text); }
+.form-message { min-height: 20px; margin: 12px 0 0; color: var(--danger); font-size: 12px; }
+.form-message.success { color: var(--accent); }
