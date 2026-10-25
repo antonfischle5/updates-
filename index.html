@@ -84,14 +84,30 @@
         <strong id="page-title">Startseite</strong>
       </header>
       <div class="page-content">
-        <section id="home-page">
-          <div class="welcome-card">
-            <h1 id="welcome-title">Willkommen!</h1>
-            <p>Du bist angemeldet. Hier entsteht dein persönlicher Bereich.</p>
+        <section id="home-page" class="dashboard">
+          <div class="dashboard-heading">
+            <div><p class="eyebrow">ÜBERSICHT</p><h1 id="welcome-title">Willkommen!</h1><p class="dashboard-subtitle">Hier ist deine persönliche Übersicht.</p></div>
+            <span class="live-pill"><span class="live-dot"></span> Konto aktiv</span>
           </div>
-          <div class="feature-grid">
-            <article class="feature-card"><h2>Dein Profil</h2><p>Verwalte deinen Namen und dein Passwort über das Profilmenü unten links.</p></article>
-            <article class="feature-card"><h2>Weitere Funktionen</h2><p>Die Seitenleiste ist vorbereitet. Hier können später weitere Bereiche dazukommen.</p></article>
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Kontostatus</span><span class="stat-icon mint">✓</span></div><strong class="stat-value">Aktiv</strong><span class="stat-note">Du bist angemeldet</span></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Profil</span><span class="stat-icon violet">◎</span></div><strong class="stat-value" id="dashboard-username">–</strong><span class="stat-note">Dein Benutzername</span></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Darstellung</span><span class="stat-icon amber">◐</span></div><strong class="stat-value" id="dashboard-theme">Hell</strong><span class="stat-note">Aktuelles Farbschema</span></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-label">Sicherheit</span><span class="stat-icon blue">◆</span></div><strong class="stat-value">Geschützt</strong><span class="stat-note">Anmeldung mit Passwort</span></article>
+          </div>
+          <div class="dashboard-lower">
+            <section class="panel-card">
+              <div class="panel-heading"><div><h2>Schnellzugriff</h2><p>Die wichtigsten Aktionen an einem Ort.</p></div></div>
+              <div class="quick-actions">
+                <button class="quick-action" id="quick-settings" type="button"><span class="quick-icon">⚙</span><span><strong>Einstellungen</strong><small>Name, Passwort und Design verwalten</small></span><span class="quick-arrow">↗</span></button>
+                <button class="quick-action" id="quick-profile" type="button"><span class="quick-icon">◎</span><span><strong>Mein Profil</strong><small>Dein Konto und Profilmenü öffnen</small></span><span class="quick-arrow">↗</span></button>
+              </div>
+            </section>
+            <section class="panel-card">
+              <div class="panel-heading"><div><h2>Dein Bereich</h2><p>Weitere Funktionen können hier ergänzt werden.</p></div></div>
+              <div class="area-row"><span class="area-icon">▦</span><span class="area-copy"><strong>Dateien</strong><small>Ein eigener Bereich ist vorbereitet</small></span><span class="coming-soon">Demnächst</span></div>
+              <div class="area-row"><span class="area-icon">⌁</span><span class="area-copy"><strong>Aktivität</strong><small>Platz für Neuigkeiten und Verlauf</small></span><span class="coming-soon">Demnächst</span></div>
+            </section>
           </div>
         </section>
         <section id="placeholder-page" class="welcome-card hidden">
@@ -200,6 +216,7 @@
       document.querySelector("#menu-username").textContent = currentUsername;
       document.querySelector("#profile-avatar").textContent = currentUsername.slice(0, 1).toUpperCase();
       document.querySelector("#welcome-title").textContent = "Willkommen, " + currentUsername;
+      document.querySelector("#dashboard-username").textContent = currentUsername;
       document.querySelector("#settings-username").value = currentUsername;
     }
     async function checkSession() {
@@ -300,6 +317,8 @@
     }
     function closeSettings() { settingsBackdrop.classList.add("hidden"); }
     document.querySelector("#open-settings").addEventListener("click", openSettings);
+    document.querySelector("#quick-settings").addEventListener("click", openSettings);
+    document.querySelector("#quick-profile").addEventListener("click", () => profileButton.click());
     document.querySelector("#close-settings").addEventListener("click", closeSettings);
     document.querySelector("#cancel-settings").addEventListener("click", closeSettings);
     settingsBackdrop.addEventListener("click", (event) => { if (event.target === settingsBackdrop) closeSettings(); });
@@ -307,6 +326,8 @@
 
     function applyTheme(theme) {
       document.documentElement.dataset.theme = theme;
+      const dashboardTheme = document.querySelector("#dashboard-theme");
+      if (dashboardTheme) dashboardTheme.textContent = theme === "dark" ? "Dunkel" : "Hell";
       document.querySelector("#theme-light").setAttribute("aria-pressed", String(theme === "light"));
       document.querySelector("#theme-dark").setAttribute("aria-pressed", String(theme === "dark"));
       try { localStorage.setItem("account-theme", theme); } catch {}
