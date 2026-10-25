@@ -395,7 +395,7 @@ if ($action === 'admin-permissions') {
     $username = is_string($body['username'] ?? null) ? trim($body['username']) : '';
     $module = (string)($body['module'] ?? '');
     $allowed = ($body['allowed'] ?? null) === true ? 1 : 0;
-    if (!in_array($module, ['files', 'activity'], true)) respond(400, ['error' => 'Unbekanntes Modul.']);
+    if (!in_array($module, ['activity'], true)) respond(400, ['error' => 'Das Dateien-Modul ist dauerhaft Administratoren vorbehalten.']);
     if (!in_array($scope, ['all', 'user'], true)) respond(400, ['error' => 'Ungültiger Geltungsbereich.']);
     if ($scope === 'user' && !preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) respond(400, ['error' => 'Bitte wähle einen gültigen Benutzer.']);
     try {
@@ -417,6 +417,109 @@ if ($action === 'admin-permissions') {
     respond(200, ['ok' => true]);
 }
 
+
+function requireFilesAdmin(): void {
+    requireAdmin();
+}
+
+function filesStorageDir(): string {
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'private-files' . DIRECTORY_SEPARATOR . 'uploads';
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+        respond(500, ['error' => 'Der Upload-Ordner konnte nicht erstellt werden.']);
+    }
+    // Apache: uploaded content must never be reachable directly.
+    $htaccess = __DIR__ . DIRECTORY_SEPARATOR . 'private-files' . DIRECTORY_SEPARATOR . '.htaccess';
+    if (!is_file($htaccess)) {
+        @file_put_contents($htaccess, "Require all denied\\nDeny from all\\n");
+    }
+    return $dir;
+}
+
+function safeStoredFile(string $id): ?string {
+    if (!preg_match('/^[a-f0-9]{32}$/', $id)) return null;
+    $path = filesStorageDir() . DIRECTORY_SEPARATOR . $id . '.bin';
+    return is_file($path) && is_readable($path) ? $path : null;
+}
+
+if (in_array($action, ['files', 'file-upload', 'file-view', 'file-delete'], true)) {
+    requireFilesAdmin();
+
+    if ($action === 'files') {
+        if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+        $dir = filesStorageDir();
+        $items = [];
+        foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $metaPath) {
+            $meta = json_decode((string)file_get_contents($metaPath), true);
+            if (!is_array($meta) || !preg_match('/^[a-f0-9]{32}$/', (string)($meta['id'] ?? ''))) continue;
+            $stored = safeStoredFile((string)$meta['id']);
+            if (!$stored) continue;
+            $items[] = [
+                'id' => $meta['id'],
+                'name' => (string)($meta['name'] ?? 'Datei'),
+                'size' => filesize($stored) ?: 0,
+                'type' => (string)($meta['type'] ?? 'application/octet-stream'),
+                'uploadedAt' => (string)($meta['uploadedAt'] ?? '')
+            ];
+        }
+        usort($items, static fn(array $a, array $b): int => strcmp($b['uploadedAt'], $a['uploadedAt']));
+        respond(200, ['files' => $items]);
+    }
+
+    if ($action === 'file-upload') {
+        if ($method !== 'POST') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+        if (!isset($_FILES['upload']) || !is_array($_FILES['upload'])) respond(400, ['error' => 'Bitte wähle eine Datei aus.']);
+        $upload = $_FILES['upload'];
+        if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) respond(400, ['error' => 'Upload fehlgeschlagen. Die Datei ist eventuell zu groß.']);
+        if (!is_uploaded_file((string)$upload['tmp_name'])) respond(400, ['error' => 'Ungültiger Upload.']);
+        if ((int)$upload['size'] < 1 || (int)$upload['size'] > 10 * 1024 * 1024) respond(413, ['error' => 'Dateien dürfen maximal 10 MB groß sein.']);
+        $originalName = basename(str_replace('\\\\', '/', (string)$upload['name']));
+        $originalName = preg_replace('/[\\x00-\\x1F\\x7F]/u', '', $originalName) ?: 'Datei';
+        $originalName = mb_substr($originalName, 0, 180, 'UTF-8');
+        $mime = 'application/octet-stream';
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $detected = $finfo->file((string)$upload['tmp_name']);
+            if (is_string($detected) && $detected !== '') $mime = $detected;
+        }
+        $id = bin2hex(random_bytes(16));
+        $dir = filesStorageDir();
+        if (!move_uploaded_file((string)$upload['tmp_name'], $dir . DIRECTORY_SEPARATOR . $id . '.bin')) respond(500, ['error' => 'Datei konnte nicht gespeichert werden.']);
+        $meta = ['id' => $id, 'name' => $originalName, 'type' => $mime, 'uploadedAt' => gmdate('c')];
+        if (file_put_contents($dir . DIRECTORY_SEPARATOR . $id . '.json', json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) {
+            @unlink($dir . DIRECTORY_SEPARATOR . $id . '.bin');
+            respond(500, ['error' => 'Dateiinformationen konnten nicht gespeichert werden.']);
+        }
+        respond(201, ['ok' => true, 'file' => ['id' => $id, 'name' => $originalName, 'type' => $mime, 'size' => (int)$upload['size'], 'uploadedAt' => $meta['uploadedAt']]]);
+    }
+
+    $id = (string)($_GET['id'] ?? '');
+    $stored = safeStoredFile($id);
+    $metaPath = filesStorageDir() . DIRECTORY_SEPARATOR . $id . '.json';
+    $meta = is_file($metaPath) ? json_decode((string)file_get_contents($metaPath), true) : null;
+    if (!$stored || !is_array($meta)) respond(404, ['error' => 'Datei nicht gefunden.']);
+
+    if ($action === 'file-delete') {
+        if ($method !== 'POST') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+        @unlink($stored);
+        @unlink($metaPath);
+        respond(200, ['ok' => true]);
+    }
+
+    if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
+    $mime = (string)($meta['type'] ?? 'application/octet-stream');
+    $name = (string)($meta['name'] ?? 'Datei');
+    $previewable = str_starts_with($mime, 'image/') || str_starts_with($mime, 'text/') || in_array($mime, ['application/pdf', 'application/json', 'application/xml', 'application/javascript'], true);
+    $safeInlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml', 'application/pdf'];
+    if (str_starts_with($mime, 'text/') || in_array($mime, ['application/json', 'application/xml', 'application/javascript'], true)) $mime = 'text/plain';
+    if (!in_array($mime, $safeInlineTypes, true) && !str_starts_with($mime, 'text/')) $previewable = false;
+    header('Content-Type: ' . ($previewable ? $mime : 'application/octet-stream') . (str_starts_with($mime, 'text/') ? '; charset=utf-8' : ''));
+    header('Content-Length: ' . (string)filesize($stored));
+    header('Content-Disposition: ' . ($previewable ? 'inline' : 'attachment') . '; filename="' . str_replace(['"', "\\\\", "\\r", "\\n"], ['_', '_', '', ''], $name) . '"');
+    header('X-Content-Type-Options: nosniff');
+    readfile($stored);
+    exit;
+}
+
 if ($action === 'module-access') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireLogin();
@@ -424,21 +527,15 @@ if ($action === 'module-access') {
     if (isAdmin()) respond(200, ['access' => ['files' => true, 'activity' => true]]);
     $stmt = $db->prepare("SELECT module, allowed FROM module_permissions WHERE username_key IN ('*', ?) ORDER BY username_key");
     $stmt->execute([$usernameKey]);
-    $access = ['files' => true, 'activity' => true];
+    $access = ['files' => false, 'activity' => true];
     foreach ($stmt->fetchAll() as $row) {
         $access[(string)$row['module']] = (int)$row['allowed'] === 1;
     }
     respond(200, ['access' => $access]);
 }
 
-if ($action === 'files') {
-    if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
-    requireLogin();
-    if (!moduleAllowed($db, 'files')) respond(403, ['error' => 'Der Administrator hat den Zugriff auf dieses Modul gesperrt.']);
-    respond(200, [['id' => 'welcome', 'name' => 'Willkommen.txt']]);
-}
-
 function moduleAllowed(PDO $db, string $module): bool {
+    if ($module === 'files') return isAdmin();
     if (isAdmin()) return true;
     $usernameKey = strtolower((string)($_SESSION['username'] ?? ''));
     $stmt = $db->prepare("SELECT username_key, allowed FROM module_permissions WHERE module = ? AND username_key IN ('*', ?) ORDER BY username_key");
