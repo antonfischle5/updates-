@@ -114,6 +114,18 @@
             </section>
           </div>
         </section>
+        <section id="files-page" class="panel-card hidden">
+          <div class="panel-heading"><div><h2>Dateiverwaltung</h2><p>Nur Administratoren können Dateien hochladen, ansehen oder löschen. Maximal 10 MB pro Datei.</p></div></div>
+          <form id="file-upload-form" class="file-upload-form">
+            <label class="admin-label" for="file-upload-input">Datei auswählen</label>
+            <input id="file-upload-input" type="file" required>
+            <button class="primary-button" id="file-upload-button" type="submit">Datei hochladen</button>
+            <p id="files-message" class="form-message" role="status"></p>
+          </form>
+          <div class="files-list-heading"><h3>Gespeicherte Dateien</h3><button class="secondary-button" id="files-refresh" type="button">Aktualisieren</button></div>
+          <div id="files-list" class="files-list"><p>Dateien werden geladen …</p></div>
+          <section id="file-preview" class="file-preview hidden"><div class="files-list-heading"><h3 id="file-preview-title">Vorschau</h3><button class="secondary-button" id="file-preview-close" type="button">Schließen</button></div><div id="file-preview-content"></div></section>
+        </section>
         <section id="placeholder-page" class="welcome-card hidden">
           <h1 id="placeholder-title">Kommt später</h1>
           <p>Dieser Bereich ist vorbereitet und kann später erweitert werden.</p>
@@ -126,7 +138,7 @@
             <select id="permission-scope" class="admin-input"><option value="all">Alle Benutzer</option><option value="user">Ein bestimmter Benutzer</option></select>
             <div id="permission-user-wrap" class="hidden"><label class="admin-label" for="permission-user">Benutzer auswählen</label><select id="permission-user" class="admin-input"></select></div>
             <label class="admin-label" for="permission-module">Modul</label>
-            <select id="permission-module" class="admin-input"><option value="files">Dateien</option><option value="activity">Aktivität</option></select>
+            <select id="permission-module" class="admin-input"><option value="activity">Aktivität</option></select>
             <div class="admin-actions"><button id="permission-lock" class="primary-button" type="button">Zugriff sperren</button><button id="permission-unlock" class="secondary-button" type="button">Zugriff erlauben</button></div>
             <p id="admin-message" class="form-message" role="status"></p>
           </div>
@@ -359,7 +371,10 @@
         const response = await fetch("api.php?action=module-access", { credentials: "same-origin", cache: "no-store" });
         if (!response.ok) return;
         const result = await response.json();
-        document.querySelector('[data-page="files"]').classList.toggle("hidden", result.access?.files === false);
+        document.querySelector('[data-page="files"]').classList.add("hidden");
+        const adminResponse = await fetch("api.php?action=admin-info", { credentials: "same-origin", cache: "no-store" });
+        const adminInfo = await adminResponse.json();
+        document.querySelector('[data-page="files"]').classList.toggle("hidden", !(adminResponse.ok && adminInfo.isAdmin === true));
         document.querySelector('[data-page="activity"]').classList.toggle("hidden", result.access?.activity === false);
       } catch {}
     }
@@ -452,11 +467,15 @@
         }
         const home = page === "home";
         const admin = page === "admin";
+        const files = page === "files";
+        if (files && document.querySelector('[data-page="files"]').classList.contains("hidden")) return;
+        document.querySelector("#files-page").classList.toggle("hidden", !files);
         document.querySelector("#home-page").classList.toggle("hidden", !home);
-        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin);
+        document.querySelector("#placeholder-page").classList.toggle("hidden", home || admin || files);
         adminPage.classList.toggle("hidden", !admin);
         document.querySelector("#page-title").textContent = home ? "Startseite" : (admin ? "Admin-Bereich" : (page === "files" ? "Dateien" : "Aktivität"));
-        document.querySelector("#placeholder-title").textContent = page === "files" ? "Dateien kommen später" : "Aktivität kommt später";
+        if (!files && !home && !admin) document.querySelector("#placeholder-title").textContent = "Aktivität kommt später";
+        if (files) loadFiles();
         if (window.matchMedia("(max-width: 760px)").matches) sidebar.classList.remove("mobile-open");
       });
     });
@@ -571,6 +590,90 @@
         }
       } catch { alert("Server nicht erreichbar."); }
     });
+
+
+    const fileUploadForm = document.querySelector("#file-upload-form");
+    const fileUploadInput = document.querySelector("#file-upload-input");
+    const filesMessage = document.querySelector("#files-message");
+    const filesList = document.querySelector("#files-list");
+    const filePreview = document.querySelector("#file-preview");
+    const filePreviewContent = document.querySelector("#file-preview-content");
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+    async function loadFiles() {
+      filesList.textContent = "Dateien werden geladen …";
+      try {
+        const response = await fetch("api.php?action=files", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Dateiliste konnte nicht geladen werden.");
+        filesList.replaceChildren();
+        if (!data.files || data.files.length === 0) {
+          const empty = document.createElement("p"); empty.textContent = "Noch keine Dateien hochgeladen."; filesList.append(empty); return;
+        }
+        data.files.forEach(file => {
+          const row = document.createElement("div"); row.className = "file-row";
+          const details = document.createElement("div"); details.className = "file-details";
+          const name = document.createElement("strong"); name.textContent = file.name;
+          const meta = document.createElement("small"); meta.textContent = formatFileSize(file.size) + " · " + (file.type || "Datei");
+          details.append(name, meta);
+          const actions = document.createElement("div"); actions.className = "file-actions";
+          const view = document.createElement("button"); view.className = "secondary-button"; view.type = "button"; view.textContent = "Ansehen";
+          view.addEventListener("click", () => previewFile(file));
+          const download = document.createElement("a"); download.className = "secondary-button file-download"; download.textContent = "Download"; download.href = "api.php?action=file-view&id=" + encodeURIComponent(file.id); download.target = "_blank"; download.rel = "noopener"; download.setAttribute("download", file.name);
+          const del = document.createElement("button"); del.className = "secondary-button danger-button"; del.type = "button"; del.textContent = "Löschen";
+          del.addEventListener("click", async () => {
+            if (!window.confirm("Datei „" + file.name + "“ wirklich löschen?")) return;
+            try {
+              const response = await fetch("api.php?action=file-delete&id=" + encodeURIComponent(file.id), { method: "POST", credentials: "same-origin" });
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(result.error || "Datei konnte nicht gelöscht werden.");
+              setMessage(filesMessage, "Datei gelöscht.", true); loadFiles();
+            } catch (error) { setMessage(filesMessage, error.message || "Server nicht erreichbar."); }
+          });
+          actions.append(view, download, del); row.append(details, actions); filesList.append(row);
+        });
+      } catch (error) { filesList.textContent = error.message || "Dateien konnten nicht geladen werden."; }
+    }
+    async function previewFile(file) {
+      filePreview.classList.remove("hidden");
+      document.querySelector("#file-preview-title").textContent = file.name;
+      filePreviewContent.replaceChildren();
+      const url = "api.php?action=file-view&id=" + encodeURIComponent(file.id);
+      if ((file.type || "").startsWith("image/") && file.type !== "image/svg+xml") {
+        const img = document.createElement("img"); img.className = "file-image-preview"; img.alt = file.name; img.src = url; filePreviewContent.append(img); return;
+      }
+      if ((file.type || "").startsWith("text/") || ["application/json","application/xml","application/javascript"].includes(file.type)) {
+        const pre = document.createElement("pre"); pre.className = "file-text-preview"; pre.textContent = "Lade Vorschau …"; filePreviewContent.append(pre);
+        try { const response = await fetch(url, { credentials: "same-origin", cache: "no-store" }); if (!response.ok) throw new Error("Vorschau nicht verfügbar."); pre.textContent = await response.text(); }
+        catch (error) { pre.textContent = error.message; }
+        return;
+      }
+      if (file.type === "application/pdf") {
+        const frame = document.createElement("iframe"); frame.className = "file-pdf-preview"; frame.title = "PDF-Vorschau"; frame.src = url; filePreviewContent.append(frame); return;
+      }
+      const note = document.createElement("p"); note.textContent = "Für diesen Dateityp gibt es keine eingebaute Vorschau. Nutze bitte „Download“."; filePreviewContent.append(note);
+    }
+    fileUploadForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const file = fileUploadInput.files && fileUploadInput.files[0];
+      if (!file) { setMessage(filesMessage, "Bitte wähle eine Datei aus."); return; }
+      if (file.size > 10 * 1024 * 1024) { setMessage(filesMessage, "Die Datei ist größer als 10 MB."); return; }
+      const button = document.querySelector("#file-upload-button"); button.disabled = true;
+      setMessage(filesMessage, "Datei wird hochgeladen …");
+      try {
+        const formData = new FormData(); formData.append("upload", file);
+        const response = await fetch("api.php?action=file-upload", { method: "POST", credentials: "same-origin", body: formData });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Upload fehlgeschlagen.");
+        fileUploadForm.reset(); setMessage(filesMessage, "Datei erfolgreich hochgeladen.", true); await loadFiles();
+      } catch (error) { setMessage(filesMessage, error.message || "Server nicht erreichbar."); }
+      finally { button.disabled = false; }
+    });
+    document.querySelector("#files-refresh").addEventListener("click", loadFiles);
+    document.querySelector("#file-preview-close").addEventListener("click", () => { filePreview.classList.add("hidden"); filePreviewContent.replaceChildren(); });
 
     setAuthMode("login");
     checkSession();
