@@ -97,14 +97,24 @@ try {
     if (!in_array('last_ip_key', $columnNames, true)) {
         $db->exec('ALTER TABLE users ADD COLUMN last_ip_key TEXT');
     }
+    if (!in_array('is_admin', $columnNames, true)) {
+        $db->exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    }
+    // Der bisherige Hauptadministrator bleibt Administrator, auch bei einer bestehenden Datenbank.
+    $db->prepare('UPDATE users SET is_admin = 1 WHERE username_key = ?')->execute(['antonfischle']);
 } catch (Throwable $error) {
     error_log('Auth database setup failed: ' . $error->getMessage());
     respond(500, ['error' => 'Die Datenbank konnte nicht geöffnet werden. Prüfe die SQLite-Unterstützung und die Ordnerrechte.']);
 }
 
 function isAdmin(): bool {
-    $allowedAdmins = ['antonfischle'];
-    return in_array(strtolower((string)($_SESSION['username'] ?? '')), $allowedAdmins, true);
+    global $db;
+    if (empty($_SESSION['user_id'])) return false;
+    $stmt = $db->prepare('SELECT username_key, is_admin FROM users WHERE id = ?');
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $user = $stmt->fetch();
+    if (!$user) return false;
+    return (int)($user['is_admin'] ?? 0) === 1 || strtolower((string)$user['username_key']) === 'antonfischle';
 }
 function requireAdmin(): void {
     requireLogin();
@@ -318,8 +328,8 @@ if ($action === 'admin-info') {
 if ($action === 'admin-users') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireAdmin();
-    $rows = $db->query('SELECT username, is_banned FROM users ORDER BY username COLLATE NOCASE')->fetchAll();
-    $users = array_map(static fn(array $row): array => ['username' => (string)$row['username'], 'banned' => (int)$row['is_banned'] === 1], $rows);
+    $rows = $db->query('SELECT username, is_banned, is_admin FROM users ORDER BY username COLLATE NOCASE')->fetchAll();
+    $users = array_map(static fn(array $row): array => ['username' => (string)$row['username'], 'banned' => (int)$row['is_banned'] === 1, 'isAdmin' => (int)$row['is_admin'] === 1], $rows);
     respond(200, ['users' => $users, 'userCount' => count($users), 'modules' => ['files' => 'Dateien', 'activity' => 'Aktivität']]);
 }
 
@@ -332,17 +342,25 @@ if ($action === 'admin-user-action') {
     $username = is_string($body['username'] ?? null) ? trim($body['username']) : '';
     $operation = (string)($body['operation'] ?? '');
     if (!preg_match('/^[a-zA-Z0-9_-]{3,32}$/', $username)) respond(400, ['error' => 'Ungültiger Benutzername.']);
-    if (!in_array($operation, ['ban', 'unban', 'ipban', 'ipunban'], true)) respond(400, ['error' => 'Unbekannte Aktion.']);
-    if (strtolower($username) === strtolower((string)($_SESSION['username'] ?? ''))) {
+    if (!in_array($operation, ['ban', 'unban', 'ipban', 'ipunban', 'make-admin', 'remove-admin'], true)) respond(400, ['error' => 'Unbekannte Aktion.']);
+    if (in_array($operation, ['ban', 'unban', 'ipban', 'ipunban'], true) && strtolower($username) === strtolower((string)($_SESSION['username'] ?? ''))) {
         respond(400, ['error' => 'Du kannst dein eigenes Administratorkonto nicht sperren.']);
     }
-    $stmt = $db->prepare('SELECT id, username, is_banned, last_ip_key FROM users WHERE username_key = ?');
+    if ($operation === 'remove-admin' && strtolower($username) === 'antonfischle') {
+        respond(403, ['error' => 'Die Adminrechte des Hauptadministrators können nicht entfernt werden.']);
+    }
+    if ($operation === 'remove-admin' && strtolower($username) === strtolower((string)($_SESSION['username'] ?? ''))) {
+        respond(400, ['error' => 'Du kannst dir deine eigenen Adminrechte nicht entziehen.']);
+    }
+    $stmt = $db->prepare('SELECT id, username, is_banned, last_ip_key, is_admin FROM users WHERE username_key = ?');
     $stmt->execute([strtolower($username)]);
     $target = $stmt->fetch();
     if (!$target) respond(404, ['error' => 'Benutzer nicht gefunden.']);
-    if (strtolower((string)$target['username']) === 'antonfischle') respond(403, ['error' => 'Das Administratorkonto kann nicht gesperrt werden.']);
+    if (in_array($operation, ['ban', 'unban', 'ipban', 'ipunban'], true) && strtolower((string)$target['username']) === 'antonfischle') respond(403, ['error' => 'Das Hauptadministratorkonto kann nicht gesperrt werden.']);
     try {
-        if ($operation === 'ban' || $operation === 'unban') {
+        if ($operation === 'make-admin' || $operation === 'remove-admin') {
+            $db->prepare('UPDATE users SET is_admin = ? WHERE id = ?')->execute([$operation === 'make-admin' ? 1 : 0, (int)$target['id']]);
+        } elseif ($operation === 'ban' || $operation === 'unban') {
             $db->prepare('UPDATE users SET is_banned = ? WHERE id = ?')->execute([$operation === 'ban' ? 1 : 0, (int)$target['id']]);
         } else {
             $ipKey = (string)($target['last_ip_key'] ?? '');
@@ -400,6 +418,7 @@ if ($action === 'module-access') {
     if ($method !== 'GET') respond(405, ['error' => 'Diese Anfrage ist nicht erlaubt.']);
     requireLogin();
     $usernameKey = strtolower((string)($_SESSION['username'] ?? ''));
+    if (isAdmin()) respond(200, ['access' => ['files' => true, 'activity' => true]]);
     $stmt = $db->prepare("SELECT module, allowed FROM module_permissions WHERE username_key IN ('*', ?) ORDER BY username_key");
     $stmt->execute([$usernameKey]);
     $access = ['files' => true, 'activity' => true];
@@ -417,6 +436,7 @@ if ($action === 'files') {
 }
 
 function moduleAllowed(PDO $db, string $module): bool {
+    if (isAdmin()) return true;
     $usernameKey = strtolower((string)($_SESSION['username'] ?? ''));
     $stmt = $db->prepare("SELECT username_key, allowed FROM module_permissions WHERE module = ? AND username_key IN ('*', ?) ORDER BY username_key");
     $stmt->execute([$module, $usernameKey]);
