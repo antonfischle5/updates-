@@ -768,6 +768,8 @@
     document.querySelector("#leaderboard-toggle").onclick=()=>{const w=document.querySelector("#leaderboard-wrap"),b=document.querySelector("#leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadLeaderboard();};
     document.querySelector("#farm-leaderboard-toggle").onclick=()=>{const w=document.querySelector("#farm-leaderboard-wrap"),b=document.querySelector("#farm-leaderboard-toggle"),open=w.classList.contains("hidden");w.classList.toggle("hidden",!open);b.setAttribute("aria-expanded",String(open));if(open)loadFarmBoard();};
     renderFarm();
+    // Aktualisiert die Reife der Ernte automatisch, damit Ernten-Buttons nach Ablauf der Zeit aktiv werden.
+    setInterval(renderFarm, 5000);
 
     setAuthMode("login");
     checkSession();
