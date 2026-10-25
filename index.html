@@ -275,6 +275,16 @@
     document.querySelector("#permission-lock").addEventListener("click", () => setPermission(false));
     document.querySelector("#permission-unlock").addEventListener("click", () => setPermission(true));
 
+    async function refreshModuleAccess() {
+      try {
+        const response = await fetch("api.php?action=module-access", { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) return;
+        const result = await response.json();
+        document.querySelector('[data-page="files"]').classList.toggle("hidden", result.access?.files === false);
+        document.querySelector('[data-page="activity"]').classList.toggle("hidden", result.access?.activity === false);
+      } catch {}
+    }
+
     function showApp(username) {
       currentUsername = username || "Benutzer";
       authView.classList.add("hidden");
@@ -285,6 +295,7 @@
       document.querySelector("#welcome-title").textContent = "Willkommen, " + currentUsername;
       document.querySelector("#dashboard-username").textContent = currentUsername;
       initAdmin();
+      refreshModuleAccess();
       document.querySelector("#settings-username").value = currentUsername;
     }
     async function checkSession() {
